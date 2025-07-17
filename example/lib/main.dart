@@ -349,8 +349,8 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
     try {
       await _printer.startScan();
       
-      // Auto-stop scan after 10 seconds and sort the final list
-      _scanTimer = Timer(const Duration(seconds: 10), () {
+      // Auto-stop scan after 5 seconds and sort the final list
+      _scanTimer = Timer(const Duration(seconds: 5), () {
         _stopScanAndSort();
       });
     } catch (e) {
@@ -455,22 +455,34 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
             ),
           ),
           Expanded(
-            child: (_isScanning ? _discoveredDevices : _sortedDevices).isEmpty
-                ? Center(
-                    child: Text(
-                      _isScanning 
-                        ? 'Searching for devices...' 
-                        : 'No devices found.\nTap refresh to scan again.',
-                      textAlign: TextAlign.center,
+            child: _isScanning
+                ? const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CircularProgressIndicator(),
+                        SizedBox(height: 16),
+                        Text(
+                          'Searching for devices...',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      ],
                     ),
                   )
-                : ListView.builder(
-                    itemCount: _isScanning ? _discoveredDevices.length : _sortedDevices.length,
-                    itemBuilder: (context, index) {
-                      final device = _isScanning ? _discoveredDevices[index] : _sortedDevices[index];
-                      return _buildDeviceListItem(device, false);
-                    },
-                  ),
+                : _sortedDevices.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'No devices found.\nTap refresh to scan again.',
+                          textAlign: TextAlign.center,
+                        ),
+                      )
+                    : ListView.builder(
+                        itemCount: _sortedDevices.length,
+                        itemBuilder: (context, index) {
+                          final device = _sortedDevices[index];
+                          return _buildDeviceListItem(device, false);
+                        },
+                      ),
           ),
         ],
       ),
