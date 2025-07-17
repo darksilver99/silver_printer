@@ -5,7 +5,10 @@
       "Bash(flutter analyze:*)",
       "Bash(flutter test:*)",
       "Bash(flutter run:*)",
-      "Bash(flutter build:*)"
+      "Bash(flutter build:*)",
+      "Bash(grep:*)",
+      "Bash(flutter:*)",
+      "Bash(adb:*)"
     ],
     "deny": []
   }

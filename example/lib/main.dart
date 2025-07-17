@@ -78,20 +78,50 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Future<void> _checkConnectionAndNavigate() async {
+    // Show loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+    
+    // Check both connection state and printer status
     final isConnected = await _printer.isConnected();
     
-    if (!mounted) return;
-    
+    // Try to ping the printer to verify actual connection
+    bool actuallyConnected = false;
     if (isConnected) {
+      try {
+        // Try to get printer status as a connectivity test
+        final status = await _printer.getPrinterStatus();
+        actuallyConnected = (status != printer.PrinterStatus.offline);
+      } catch (e) {
+        // Connection test failed - printer is not actually connected
+        actuallyConnected = false;
+      }
+    }
+    
+    if (!mounted) return;
+    Navigator.pop(context); // Close loading dialog
+    
+    if (actuallyConnected) {
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => const PrintPreviewScreen()),
       );
     } else {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const DeviceListScreen()),
-      );
+      // If not actually connected, disconnect and go to device list
+      if (isConnected) {
+        await _printer.disconnect();
+      }
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const DeviceListScreen()),
+        );
+      }
     }
   }
 
@@ -104,105 +134,121 @@ class _MainScreenState extends State<MainScreen> {
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Bluetooth Status',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Icon(
-                          _bluetoothAvailable ? Icons.bluetooth : Icons.bluetooth_disabled,
-                          color: _bluetoothAvailable ? Colors.blue : Colors.grey,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(_bluetoothAvailable ? 'Available' : 'Unavailable'),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Connection Status',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Icon(
-                          _getConnectionIcon(),
-                          color: _getConnectionColor(),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(_getConnectionText()),
-                      ],
-                    ),
-                    if (_connectedDevice != null) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        'Connected to: ${_connectedDevice!.name}',
-                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Bluetooth Status',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                       ),
-                      Text(
-                        'Type: ${_connectedDevice!.type.name.toUpperCase()}',
-                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Icon(
+                            _bluetoothAvailable ? Icons.bluetooth : Icons.bluetooth_disabled,
+                            color: _bluetoothAvailable ? Colors.blue : Colors.grey,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(_bluetoothAvailable ? 'Available' : 'Unavailable'),
+                        ],
                       ),
                     ],
-                  ],
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 32),
-            const Text(
-              'Food Order Receipt',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Text('Order #12345', style: TextStyle(fontWeight: FontWeight.bold)),
-                    SizedBox(height: 8),
-                    Text('1x Pad Thai - ฿150'),
-                    Text('2x Green Curry - ฿240'),
-                    Text('1x Mango Sticky Rice - ฿80'),
-                    Divider(),
-                    Text('Total: ฿470', style: TextStyle(fontWeight: FontWeight.bold)),
-                  ],
+              const SizedBox(height: 16),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Connection Status',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Icon(
+                            _getConnectionIcon(),
+                            color: _getConnectionColor(),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(_getConnectionText()),
+                        ],
+                      ),
+                      if (_connectedDevice != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          'Connected to: ${_connectedDevice!.name}',
+                          style: const TextStyle(fontSize: 12, color: Colors.grey),
+                        ),
+                        Text(
+                          'Type: ${_connectedDevice!.type.name.toUpperCase()}',
+                          style: const TextStyle(fontSize: 12, color: Colors.grey),
+                        ),
+                        const SizedBox(height: 8),
+                        ElevatedButton.icon(
+                          onPressed: () async {
+                            await _printer.disconnect();
+                          },
+                          icon: const Icon(Icons.link_off, size: 16),
+                          label: const Text('Disconnect'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            textStyle: const TextStyle(fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: _bluetoothAvailable ? _checkConnectionAndNavigate : null,
-              icon: const Icon(Icons.print),
-              label: const Text('Print Receipt'),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
+              const SizedBox(height: 32),
+              const Text(
+                'Food Order Receipt',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      Text('Order #12345', style: TextStyle(fontWeight: FontWeight.bold)),
+                      SizedBox(height: 8),
+                      Text('1x Pad Thai - ฿150'),
+                      Text('2x Green Curry - ฿240'),
+                      Text('1x Mango Sticky Rice - ฿80'),
+                      Divider(),
+                      Text('Total: ฿470', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: _bluetoothAvailable ? _checkConnectionAndNavigate : null,
+                icon: const Icon(Icons.print),
+                label: const Text('Print Receipt'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -258,14 +304,14 @@ class DeviceListScreen extends StatefulWidget {
 class _DeviceListScreenState extends State<DeviceListScreen> {
   final _printer = printer.SilverPrinter.instance;
   final List<printer.BluetoothDevice> _discoveredDevices = [];
-  List<printer.BluetoothDevice> _pairedDevices = [];
+  List<printer.BluetoothDevice> _sortedDevices = [];
   bool _isScanning = false;
   StreamSubscription<printer.BluetoothDevice>? _deviceSubscription;
+  Timer? _scanTimer;
 
   @override
   void initState() {
     super.initState();
-    _loadPairedDevices();
     _startListeningToDevices();
     _startScan();
   }
@@ -273,27 +319,23 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
   @override
   void dispose() {
     _deviceSubscription?.cancel();
+    _scanTimer?.cancel();
     _printer.stopScan();
     super.dispose();
   }
 
-  Future<void> _loadPairedDevices() async {
-    final devices = await _printer.getPairedDevices();
-    setState(() {
-      _pairedDevices = devices;
-    });
-  }
-
   void _startListeningToDevices() {
     _deviceSubscription = _printer.deviceDiscoveryStream.listen((device) {
-      setState(() {
-        final index = _discoveredDevices.indexWhere((d) => d.id == device.id);
-        if (index >= 0) {
-          _discoveredDevices[index] = device;
-        } else {
-          _discoveredDevices.add(device);
-        }
-      });
+      if (_isScanning) {
+        setState(() {
+          final index = _discoveredDevices.indexWhere((d) => d.id == device.id);
+          if (index >= 0) {
+            _discoveredDevices[index] = device;
+          } else {
+            _discoveredDevices.add(device);
+          }
+        });
+      }
     });
   }
 
@@ -301,22 +343,45 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
     setState(() {
       _isScanning = true;
       _discoveredDevices.clear();
+      _sortedDevices.clear();
     });
     
     try {
       await _printer.startScan();
+      
+      // Auto-stop scan after 10 seconds and sort the final list
+      _scanTimer = Timer(const Duration(seconds: 10), () {
+        _stopScanAndSort();
+      });
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to start scan: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to start scan: $e')),
+        );
+      }
     }
   }
 
-  Future<void> _stopScan() async {
+  Future<void> _stopScanAndSort() async {
     await _printer.stopScan();
+    
+    // Sort devices by signal strength (strongest first) once and keep it stable
+    final sortedDevices = List<printer.BluetoothDevice>.from(_discoveredDevices);
+    sortedDevices.sort((a, b) {
+      final aRssi = a.rssi ?? -100;
+      final bRssi = b.rssi ?? -100;
+      return bRssi.compareTo(aRssi); // Descending order (strongest first)
+    });
+    
     setState(() {
       _isScanning = false;
+      _sortedDevices = sortedDevices;
     });
+  }
+
+  Future<void> _stopScan() async {
+    _scanTimer?.cancel();
+    await _stopScanAndSort();
   }
 
   Future<void> _connectToDevice(printer.BluetoothDevice device) async {
@@ -340,9 +405,11 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
           SnackBar(content: Text('Connected to ${device.name}')),
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to connect')),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to connect')),
+          );
+        }
       }
     } catch (e) {
       if (!mounted) return;
@@ -367,77 +434,41 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
       ),
       body: Column(
         children: [
-          if (_isScanning)
+          if (_isScanning) ...[
             const LinearProgressIndicator(),
-          if (_pairedDevices.isNotEmpty) ...[
             const Padding(
               padding: EdgeInsets.all(16.0),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Paired Devices',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
+              child: Text(
+                'Scanning for devices...',
+                style: TextStyle(color: Colors.grey),
               ),
             ),
-            ...(_pairedDevices.map((device) => _buildDeviceListItem(device, true))),
-            const Divider(),
           ],
           Padding(
             padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Available Devices',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.info_outline, size: 16, color: Colors.blue),
-                          SizedBox(width: 8),
-                          Text(
-                            'Tips for finding your printer:',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.blue,
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 8),
-                      Text(
-                        '• Look for devices with strong signal (green)\n'
-                        '• Many printers show as "Unknown Device"\n'
-                        '• Check the MAC address (last 5 digits)\n'
-                        '• Try connecting to test if it\'s your printer',
-                        style: TextStyle(fontSize: 12, color: Colors.blue),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Available Devices',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
             ),
           ),
           Expanded(
-            child: _discoveredDevices.isEmpty
-                ? const Center(
-                    child: Text('No devices found.\nTap refresh to scan again.'),
+            child: (_isScanning ? _discoveredDevices : _sortedDevices).isEmpty
+                ? Center(
+                    child: Text(
+                      _isScanning 
+                        ? 'Searching for devices...' 
+                        : 'No devices found.\nTap refresh to scan again.',
+                      textAlign: TextAlign.center,
+                    ),
                   )
                 : ListView.builder(
-                    itemCount: _discoveredDevices.length,
+                    itemCount: _isScanning ? _discoveredDevices.length : _sortedDevices.length,
                     itemBuilder: (context, index) {
-                      return _buildDeviceListItem(_discoveredDevices[index], false);
+                      final device = _isScanning ? _discoveredDevices[index] : _sortedDevices[index];
+                      return _buildDeviceListItem(device, false);
                     },
                   ),
           ),
@@ -480,14 +511,14 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
           device.type == printer.BluetoothDeviceType.ble 
               ? Icons.bluetooth 
               : Icons.bluetooth_connected,
-          color: isPaired ? Colors.blue : Colors.grey,
+          color: Colors.blue,
           size: 32,
         ),
         title: Text(
           displayName,
-          style: TextStyle(
+          style: const TextStyle(
             fontWeight: FontWeight.bold,
-            color: isPaired ? Colors.blue : Colors.black87,
+            color: Colors.black87,
           ),
         ),
         subtitle: Column(
@@ -500,8 +531,8 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: device.type == printer.BluetoothDeviceType.ble 
-                        ? Colors.purple.withOpacity(0.1)
-                        : Colors.blue.withOpacity(0.1),
+                        ? Colors.purple.withValues(alpha: 0.1)
+                        : Colors.blue.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
@@ -515,23 +546,6 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
-                if (isPaired)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.green.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Text(
-                      'PAIRED',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: Colors.green,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
               ],
             ),
             const SizedBox(height: 4),
@@ -565,9 +579,7 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
             ],
           ],
         ),
-        trailing: isPaired 
-            ? const Icon(Icons.link, color: Colors.blue)
-            : const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
         onTap: () => _connectToDevice(device),
       ),
     );
@@ -658,10 +670,12 @@ class _PrintPreviewScreenState extends State<PrintPreviewScreen> {
             await _printer.feedPaper(3);
             await _printer.cutPaper();
             
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Receipt printed successfully!')),
-            );
-            Navigator.pop(context); // Go back to main screen
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Receipt printed successfully!')),
+              );
+              Navigator.pop(context); // Go back to main screen
+            }
           } else {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Failed to print receipt')),

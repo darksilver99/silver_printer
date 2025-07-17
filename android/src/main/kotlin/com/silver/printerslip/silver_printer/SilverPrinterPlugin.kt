@@ -61,6 +61,12 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
   private val mainHandler = Handler(Looper.getMainLooper())
   private var pendingResult: Result? = null
   private var activityBinding: ActivityPluginBinding? = null
+  private var currentMtu = 23 // Default BLE MTU
+  private var pendingWriteResult: Result? = null
+  private var writeData: ByteArray? = null
+  private var writeOffset = 0
+  private var writeChunkSize = 20
+  private var writeCharacteristic: BluetoothGattCharacteristic? = null
 
   override fun onAttachedToEngine(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
     context = flutterPluginBinding.applicationContext
@@ -172,7 +178,7 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
         result.success(connectionState == "connected")
       }
       "getPrinterStatus" -> {
-        result.success(printerStatus)
+        getPrinterStatus(result)
       }
       "printText" -> {
         val text = call.argument<String>("text")
@@ -344,30 +350,16 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
     }
 
     updateConnectionState("connecting")
+    
+    // Reset MTU to default when starting new connection
+    currentMtu = 23
 
     try {
       val device = bluetoothAdapter!!.getRemoteDevice(deviceId)
       
-      // Try Classic Bluetooth first
-      bluetoothSocket = device.createRfcommSocketToServiceRecord(SPP_UUID)
-      bluetoothSocket?.connect()
+      // Try BLE first (no pairing required)
+      connectBLE(device, result)
       
-      if (bluetoothSocket?.isConnected == true) {
-        connectedDevice = mapOf<String, Any?>(
-          "id" to device.address,
-          "name" to (device.name ?: "Unknown Device"),
-          "address" to device.address,
-          "type" to "classic",
-          "rssi" to null,
-          "isPaired" to true
-        )
-        updateConnectionState("connected")
-        updatePrinterStatus("ready")
-        result.success(true)
-      } else {
-        // If Classic fails, try BLE
-        connectBLE(device, result)
-      }
     } catch (e: Exception) {
       Log.e(TAG, "Connection failed", e)
       updateConnectionState("disconnected")
@@ -377,36 +369,174 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
 
   @SuppressLint("MissingPermission")
   private fun connectBLE(device: BluetoothDevice, result: Result) {
+    var callbackHandled = false
+    
+    // Set connection timeout
+    val connectionTimeout = Runnable {
+      if (!callbackHandled) {
+        callbackHandled = true
+        Log.d(TAG, "BLE connection timeout for device: ${device.address}")
+        bluetoothGatt?.close()
+        bluetoothGatt = null
+        tryClassicBluetooth(device, result)
+      }
+    }
+    mainHandler.postDelayed(connectionTimeout, 8000) // 8 second timeout
+    
     val gattCallback = object : BluetoothGattCallback() {
       override fun onConnectionStateChange(gatt: BluetoothGatt?, status: Int, newState: Int) {
+        if (callbackHandled) return
+        
         when (newState) {
           BluetoothProfile.STATE_CONNECTED -> {
-            bluetoothGatt = gatt
-            connectedDevice = mapOf<String, Any?>(
-              "id" to device.address,
-              "name" to (device.name ?: "Unknown Device"),
-              "address" to device.address,
-              "type" to "ble",
-              "rssi" to null,
-              "isPaired" to false
-            )
-            updateConnectionState("connected")
-            updatePrinterStatus("ready")
-            gatt?.discoverServices()
-            result.success(true)
+            if (!callbackHandled) {
+              callbackHandled = true
+              mainHandler.removeCallbacks(connectionTimeout)
+              bluetoothGatt = gatt
+              connectedDevice = mapOf<String, Any?>(
+                "id" to device.address,
+                "name" to (device.name ?: "Unknown Device"),
+                "address" to device.address,
+                "type" to "ble",
+                "rssi" to null,
+                "isPaired" to false
+              )
+              updateConnectionState("connected")
+              updatePrinterStatus("ready")
+              gatt?.discoverServices()
+              result.success(true)
+            }
           }
           BluetoothProfile.STATE_DISCONNECTED -> {
-            bluetoothGatt?.close()
-            bluetoothGatt = null
-            updateConnectionState("disconnected")
-            updatePrinterStatus("offline")
-            result.success(false)
+            if (!callbackHandled) {
+              callbackHandled = true
+              mainHandler.removeCallbacks(connectionTimeout)
+              bluetoothGatt?.close()
+              bluetoothGatt = null
+              // If BLE fails, try Classic Bluetooth as fallback
+              tryClassicBluetooth(device, result)
+            }
           }
         }
       }
+      
+      override fun onServicesDiscovered(gatt: BluetoothGatt?, status: Int) {
+        if (status == BluetoothGatt.GATT_SUCCESS) {
+          Log.d(TAG, "Services discovered for device: ${device.address}")
+          // Look for printer services
+          gatt?.services?.forEach { service ->
+            Log.d(TAG, "Service found: ${service.uuid}")
+            service.characteristics?.forEach { characteristic ->
+              Log.d(TAG, "Characteristic found: ${characteristic.uuid}")
+            }
+          }
+          
+          // Request larger MTU for faster data transfer
+          gatt?.requestMtu(512)
+        }
+      }
+      
+      override fun onMtuChanged(gatt: BluetoothGatt?, mtu: Int, status: Int) {
+        if (status == BluetoothGatt.GATT_SUCCESS) {
+          currentMtu = mtu
+          Log.d(TAG, "MTU changed to: $mtu for device: ${device.address}")
+        } else {
+          Log.d(TAG, "MTU change failed with status: $status")
+        }
+      }
+      
     }
 
+    // Use auto-connect false for faster connection
     device.connectGatt(context, false, gattCallback)
+  }
+
+  @SuppressLint("MissingPermission")
+  private fun tryClassicBluetooth(device: BluetoothDevice, result: Result) {
+    try {
+      // Only try Classic if device is already paired (to avoid pairing dialog)
+      if (device.bondState == BluetoothDevice.BOND_BONDED) {
+        // Set connection timeout for Classic Bluetooth too
+        val classicTimeout = Runnable {
+          Log.d(TAG, "Classic Bluetooth connection timeout for device: ${device.address}")
+          try {
+            bluetoothSocket?.close()
+            bluetoothSocket = null
+          } catch (e: Exception) {
+            Log.e(TAG, "Error closing socket on timeout", e)
+          }
+          updateConnectionState("disconnected")
+          updatePrinterStatus("offline")
+          result.success(false)
+        }
+        mainHandler.postDelayed(classicTimeout, 10000) // 10 second timeout
+        
+        bluetoothSocket = device.createRfcommSocketToServiceRecord(SPP_UUID)
+        bluetoothSocket?.connect()
+        
+        // Cancel timeout if successful
+        mainHandler.removeCallbacks(classicTimeout)
+        
+        if (bluetoothSocket?.isConnected == true) {
+          connectedDevice = mapOf<String, Any?>(
+            "id" to device.address,
+            "name" to (device.name ?: "Unknown Device"),
+            "address" to device.address,
+            "type" to "classic",
+            "rssi" to null,
+            "isPaired" to true
+          )
+          updateConnectionState("connected")
+          updatePrinterStatus("ready")
+          result.success(true)
+          return
+        }
+      }
+    } catch (e: Exception) {
+      Log.e(TAG, "Classic Bluetooth connection failed", e)
+    }
+    
+    // Both BLE and Classic failed
+    updateConnectionState("disconnected")
+    updatePrinterStatus("offline")
+    result.success(false)
+  }
+
+  private fun getPrinterStatus(result: Result) {
+    // Check actual connection status
+    val isActuallyConnected = when {
+      bluetoothSocket?.isConnected == true -> true
+      bluetoothGatt?.let { gatt ->
+        // For BLE, we need to check if it's still connected
+        try {
+          // Try to read services to test connection
+          val services = gatt.services
+          services != null && services.isNotEmpty()
+        } catch (e: Exception) {
+          false
+        }
+      } == true -> true
+      else -> false
+    }
+    
+    if (!isActuallyConnected && connectionState == "connected") {
+      // Connection was lost, update state
+      updateConnectionState("disconnected")
+      updatePrinterStatus("offline")
+      connectedDevice = null
+      
+      // Clean up connections
+      try {
+        bluetoothSocket?.close()
+        bluetoothGatt?.close()
+      } catch (e: Exception) {
+        Log.e(TAG, "Error closing connections", e)
+      }
+      bluetoothSocket = null
+      bluetoothGatt = null
+    }
+    
+    result.success(printerStatus)
   }
 
   @SuppressLint("MissingPermission")
@@ -547,18 +677,187 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
 
   private fun sendDataToPrinter(data: ByteArray, result: Result) {
     try {
-      bluetoothSocket?.outputStream?.write(data)
-      bluetoothSocket?.outputStream?.flush()
-      
-      mainHandler.postDelayed({
-        updatePrinterStatus("ready")
-        result.success(true)
-      }, 100)
+      // Try BLE first if connected via BLE
+      if (bluetoothGatt != null) {
+        sendDataViaBLE(data, result)
+      } else if (bluetoothSocket != null) {
+        // Classic Bluetooth
+        bluetoothSocket?.outputStream?.write(data)
+        bluetoothSocket?.outputStream?.flush()
+        
+        mainHandler.postDelayed({
+          updatePrinterStatus("ready")
+          result.success(true)
+        }, 100)
+      } else {
+        Log.e(TAG, "No active connection to send data")
+        result.success(false)
+      }
     } catch (e: IOException) {
       Log.e(TAG, "Failed to send data to printer", e)
       updatePrinterStatus("error")
       result.success(false)
     }
+  }
+  
+  @SuppressLint("MissingPermission")
+  private fun sendDataViaBLE(data: ByteArray, result: Result) {
+    bluetoothGatt?.let { gatt ->
+      // Find printer service - try common printer service UUIDs
+      val printerServiceUuids = listOf(
+        UUID.fromString("00001101-0000-1000-8000-00805f9b34fb"), // SPP
+        UUID.fromString("0000180A-0000-1000-8000-00805f9b34fb"), // Device Information
+        UUID.fromString("49535343-fe7d-4ae5-8fa9-9fafd205e455"), // Common printer service
+        UUID.fromString("6E400001-B5A3-F393-E0A9-E50E24DCCA9E")  // Nordic UART service
+      )
+      
+      var foundCharacteristic: BluetoothGattCharacteristic? = null
+      
+      // Look for writable characteristic - prioritize specific printer services
+      for (service in gatt.services) {
+        Log.d(TAG, "Checking service: ${service.uuid}")
+        for (characteristic in service.characteristics) {
+          val props = characteristic.properties
+          Log.d(TAG, "Characteristic ${characteristic.uuid} has properties: $props")
+          
+          if (props and BluetoothGattCharacteristic.PROPERTY_WRITE != 0 ||
+              props and BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE != 0) {
+            foundCharacteristic = characteristic
+            Log.d(TAG, "Selected characteristic: ${characteristic.uuid} with properties: $props")
+            break
+          }
+        }
+        if (foundCharacteristic != null) break
+      }
+      
+      if (foundCharacteristic != null) {
+        // Use adaptive chunk size based on characteristic properties
+        val chunkSize: Int
+        val useWithoutResponse: Boolean
+        val delay: Int
+        
+        if (foundCharacteristic.properties and BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE != 0) {
+          chunkSize = 500
+          useWithoutResponse = true
+          delay = 20
+          Log.d(TAG, "Using writeWithoutResponse with chunk size: $chunkSize")
+        } else {
+          chunkSize = 220
+          useWithoutResponse = false
+          delay = 25
+          Log.d(TAG, "Using write with response with chunk size: $chunkSize")
+        }
+        
+        Log.d(TAG, "Starting BLE print with MTU: $currentMtu, chunk size: $chunkSize")
+        Log.d(TAG, "Characteristic properties - Write: ${foundCharacteristic.properties and BluetoothGattCharacteristic.PROPERTY_WRITE != 0}, WriteWithoutResponse: ${foundCharacteristic.properties and BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE != 0}")
+        
+        // Send data in chunks with adaptive approach
+        sendDataInChunks(foundCharacteristic, data, chunkSize, useWithoutResponse, delay, result)
+      } else {
+        Log.e(TAG, "No writable characteristic found")
+        result.success(false)
+      }
+    } ?: run {
+      Log.e(TAG, "No GATT connection available")
+      result.success(false)
+    }
+  }
+  
+  @SuppressLint("MissingPermission")
+  private fun sendDataInChunks(
+    characteristic: BluetoothGattCharacteristic, 
+    data: ByteArray, 
+    chunkSize: Int, 
+    useWithoutResponse: Boolean, 
+    delay: Int, 
+    result: Result
+  ) {
+    Thread {
+      try {
+        val totalChunks = (data.size.toFloat() / chunkSize).let { kotlin.math.ceil(it).toInt() }
+        val progressStep = maxOf(1, totalChunks / 10) // แสดง progress ทุก 10%
+        
+        Log.d(TAG, "Total chunks to send: $totalChunks")
+        
+        for (i in data.indices step chunkSize) {
+          val end = minOf(i + chunkSize, data.size)
+          val chunk = data.sliceArray(i until end)
+          val currentChunk = (i / chunkSize) + 1
+          
+          // แสดง progress เฉพาะบางช่วง เพื่อลด logging overhead
+          if (currentChunk == 1 || currentChunk % progressStep == 0 || currentChunk == totalChunks) {
+            Log.d(TAG, "Progress: $currentChunk/$totalChunks (${((currentChunk.toFloat() / totalChunks) * 100).toInt()}%)")
+          }
+          
+          try {
+            // Set write type based on characteristic capability
+            characteristic.writeType = if (useWithoutResponse) {
+              BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
+            } else {
+              BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+            }
+            
+            characteristic.value = chunk
+            val success = bluetoothGatt?.writeCharacteristic(characteristic) ?: false
+            
+            if (!success) {
+              Log.e(TAG, "Failed to write chunk $currentChunk")
+              throw Exception("Write failed for chunk $currentChunk")
+            }
+            
+            // ลดเวลาหน่วงลงมาก และใช้ adaptive delay
+            if (currentChunk % 5 == 0) {
+              // หน่วงเฉพาะทุก 5 chunks เพื่อให้เครื่องปริ้นได้พัก
+              Thread.sleep((delay * 2).toLong())
+            } else {
+              Thread.sleep(delay.toLong())
+            }
+            
+          } catch (e: Exception) {
+            Log.e(TAG, "Error sending chunk $currentChunk: $e")
+            // ถ้า error ให้ลองส่งใหม่ 1 ครั้ง
+            try {
+              Thread.sleep((delay * 3).toLong())
+              characteristic.value = chunk
+              val retrySuccess = bluetoothGatt?.writeCharacteristic(characteristic) ?: false
+              if (retrySuccess) {
+                Log.d(TAG, "Retry successful for chunk $currentChunk")
+              } else {
+                throw Exception("Retry failed for chunk $currentChunk")
+              }
+            } catch (retryError: Exception) {
+              Log.e(TAG, "Retry failed for chunk $currentChunk: $retryError")
+              mainHandler.post {
+                updatePrinterStatus("error")
+                result.success(false)
+              }
+              return@Thread
+            }
+          }
+        }
+        
+        Log.d(TAG, "All chunks sent successfully!")
+        mainHandler.post {
+          updatePrinterStatus("ready")
+          result.success(true)
+        }
+        
+      } catch (e: Exception) {
+        Log.e(TAG, "BLE print failed: $e")
+        mainHandler.post {
+          updatePrinterStatus("error")
+          result.success(false)
+        }
+      }
+    }.start()
+  }
+  
+  private fun resetWriteState() {
+    writeData = null
+    writeOffset = 0
+    writeChunkSize = 20
+    writeCharacteristic = null
+    pendingWriteResult = null
   }
 
   private fun convertBitmapToEscPos(bitmap: Bitmap, targetWidth: Int?, targetHeight: Int?): ByteArray {
