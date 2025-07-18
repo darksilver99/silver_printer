@@ -867,45 +867,80 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
   }
 
   private fun convertBitmapToEscPos(bitmap: Bitmap, targetWidth: Int?, targetHeight: Int?): ByteArray {
-    // Resize bitmap if needed
-    val resizedBitmap = if (targetWidth != null && targetHeight != null) {
-      Bitmap.createScaledBitmap(bitmap, targetWidth, targetHeight, true)
+    // Calculate optimal size to prevent OOM
+    val maxDimension = 576 // Common thermal printer width
+    val originalWidth = bitmap.width
+    val originalHeight = bitmap.height
+    
+    // Calculate scaling factor to fit within memory constraints
+    val scaleFactor = minOf(
+      maxDimension.toFloat() / originalWidth,
+      maxDimension.toFloat() / originalHeight,
+      1.0f
+    )
+    
+    val finalWidth = if (targetWidth != null) {
+      minOf(targetWidth, (originalWidth * scaleFactor).toInt())
+    } else {
+      (originalWidth * scaleFactor).toInt()
+    }
+    
+    val finalHeight = if (targetHeight != null) {
+      minOf(targetHeight, (originalHeight * scaleFactor).toInt())
+    } else {
+      (originalHeight * scaleFactor).toInt()
+    }
+    
+    // Create scaled bitmap with memory optimization
+    val resizedBitmap = if (finalWidth != originalWidth || finalHeight != originalHeight) {
+      Bitmap.createScaledBitmap(bitmap, finalWidth, finalHeight, true)
     } else {
       bitmap
     }
 
     val width = resizedBitmap.width
     val height = resizedBitmap.height
-    val pixels = IntArray(width * height)
-    resizedBitmap.getPixels(pixels, 0, width, 0, 0, width, height)
-
-    // Convert to ESC/POS format
+    
+    // Process image in chunks to avoid OOM
+    val chunkHeight = minOf(100, height) // Process 100 rows at a time
     val escPosData = ArrayList<Byte>()
     
     // ESC/POS image header
     escPosData.addAll(listOf(0x1D, 0x76, 0x30, 0x00).map { it.toByte() })
     escPosData.addAll(listOf((width / 8).toByte(), 0x00.toByte()))
     escPosData.addAll(listOf(height.toByte(), (height shr 8).toByte()))
-
-    // Convert pixels to bitmap data
-    for (y in 0 until height) {
-      for (x in 0 until width step 8) {
-        var byte = 0
-        for (bit in 0 until 8) {
-          if (x + bit < width) {
-            val pixel = pixels[y * width + x + bit]
-            val gray = (0.299 * ((pixel shr 16) and 0xFF) + 
-                       0.587 * ((pixel shr 8) and 0xFF) + 
-                       0.114 * (pixel and 0xFF)).toInt()
-            if (gray < 128) {
-              byte = byte or (0x80 shr bit)
+    
+    // Process bitmap in chunks
+    for (startY in 0 until height step chunkHeight) {
+      val endY = minOf(startY + chunkHeight, height)
+      val chunkPixels = IntArray(width * (endY - startY))
+      resizedBitmap.getPixels(chunkPixels, 0, width, 0, startY, width, endY - startY)
+      
+      // Convert chunk to bitmap data
+      for (y in 0 until (endY - startY)) {
+        for (x in 0 until width step 8) {
+          var byte = 0
+          for (bit in 0 until 8) {
+            if (x + bit < width) {
+              val pixel = chunkPixels[y * width + x + bit]
+              val gray = (0.299 * ((pixel shr 16) and 0xFF) + 
+                         0.587 * ((pixel shr 8) and 0xFF) + 
+                         0.114 * (pixel and 0xFF)).toInt()
+              if (gray < 128) {
+                byte = byte or (1 shl (7 - bit))
+              }
             }
           }
+          escPosData.add(byte.toByte())
         }
-        escPosData.add(byte.toByte())
       }
     }
-
+    
+    // Clean up
+    if (resizedBitmap != bitmap) {
+      resizedBitmap.recycle()
+    }
+    
     return escPosData.toByteArray()
   }
 
