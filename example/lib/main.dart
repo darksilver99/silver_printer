@@ -4,6 +4,40 @@ import 'dart:async';
 import 'dart:ui' as ui;
 import 'package:silver_printer/silver_printer.dart' as printer;
 
+/*
+  SILVER PRINTER PLUGIN - QUICK SETUP GUIDE
+  
+  1. ANDROID SETUP:
+     Add to android/app/src/main/AndroidManifest.xml:
+     
+     <uses-permission android:name="android.permission.BLUETOOTH" />
+     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+     
+  2. iOS SETUP:
+     Add to ios/Runner/Info.plist:
+     
+     <key>NSBluetoothAlwaysUsageDescription</key>
+     <string>This app uses Bluetooth to connect to thermal printers</string>
+     
+  3. PRINTER COMPATIBILITY:
+     ✅ Android: All printers (BT + BLE)
+        - KPrinter_77a7 (JK-5802H): Fast printing
+        - PT-280: Fast printing
+        
+     ⚠️ iOS: BLE printers only
+        - KPrinter_77a7: NOT SUPPORTED (Bluetooth Classic)
+        - PT-280: Supported but slow printing
+        
+  4. HOW TO IDENTIFY COMPATIBLE PRINTERS:
+     - "USB+BT" = Bluetooth Classic → Android only
+     - "USB+Bluetooth" = BLE → Both platforms
+     
+  See SETUP.md for complete documentation.
+*/
+
 void main() {
   runApp(const MyApp());
 }

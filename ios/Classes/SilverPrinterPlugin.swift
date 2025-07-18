@@ -1,11 +1,18 @@
 import Flutter
 import UIKit
 import CoreBluetooth
+import ExternalAccessory
 
 public class SilverPrinterPlugin: NSObject, FlutterPlugin {
     private var centralManager: CBCentralManager?
     private var connectedPeripheral: CBPeripheral?
     private var writeCharacteristic: CBCharacteristic?
+    
+    // For optimized chunked writing
+    private var pendingWriteData: Data?
+    private var writeOffset = 0
+    private var writeChunkSize = 20
+    private var pendingWriteResult: FlutterResult?
     
     private var deviceDiscoveryChannel: FlutterEventChannel?
     private var connectionStateChannel: FlutterEventChannel?
@@ -26,7 +33,12 @@ public class SilverPrinterPlugin: NSObject, FlutterPlugin {
     private let printerServiceUUIDs = [
         CBUUID(string: "E7810A71-73AE-499D-8C15-FAA9AEF0C3F2"), // Common thermal printer service
         CBUUID(string: "49535343-FE7D-4AE5-8FA9-9FAFD205E455"), // Another common service
-        CBUUID(string: "6E400001-B5A3-F393-E0A9-E50E24DCCA9E")  // Nordic UART service
+        CBUUID(string: "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"), // Nordic UART service
+        CBUUID(string: "00001101-0000-1000-8000-00805F9B34FB"), // SPP service
+        CBUUID(string: "0000180A-0000-1000-8000-00805F9B34FB"), // Device Information service
+        CBUUID(string: "0000180F-0000-1000-8000-00805F9B34FB"), // Battery service
+        CBUUID(string: "00001800-0000-1000-8000-00805F9B34FB"), // Generic Access service
+        CBUUID(string: "00001801-0000-1000-8000-00805F9B34FB")  // Generic Attribute service
     ]
     
     private let writeCharacteristicUUIDs = [
@@ -68,8 +80,13 @@ public class SilverPrinterPlugin: NSObject, FlutterPlugin {
         case "isBluetoothAvailable":
             if centralManager == nil {
                 centralManager = CBCentralManager(delegate: self, queue: nil)
+                // Give some time for CBCentralManager to initialize
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    result(self.centralManager?.state == .poweredOn)
+                }
+            } else {
+                result(centralManager?.state == .poweredOn)
             }
-            result(centralManager?.state == .poweredOn)
             
         case "requestBluetoothPermissions":
             // iOS automatically handles Bluetooth permissions
@@ -189,10 +206,159 @@ public class SilverPrinterPlugin: NSObject, FlutterPlugin {
         discoveredDevices.removeAll()
         isScanning = true
         
-        // Scan for all peripherals, not just printer services
-        centralManager?.scanForPeripherals(withServices: nil, options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
+        // Scan for all peripherals with options to find more devices
+        let options: [String: Any] = [
+            CBCentralManagerScanOptionAllowDuplicatesKey: false,  // Don't allow duplicates initially
+            CBCentralManagerScanOptionSolicitedServiceUUIDsKey: []
+        ]
+        
+        print("iOS: Starting BLE scan...")
+        centralManager?.scanForPeripherals(withServices: nil, options: options)
+        
+        // Also try scanning for specific printer services after a delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            print("iOS: Starting targeted printer service scan...")
+            self.centralManager?.scanForPeripherals(withServices: self.printerServiceUUIDs, options: options)
+        }
+        
+        // Try scanning with minimal filtering after 1.5 seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            print("iOS: Starting minimal filter scan...")
+            let minimalOptions: [String: Any] = [:]
+            self.centralManager?.scanForPeripherals(withServices: nil, options: minimalOptions)
+        }
+        
+        // Try a more aggressive scan with duplicates after 3 seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+            print("iOS: Starting aggressive scan with duplicates...")
+            let aggressiveOptions: [String: Any] = [
+                CBCentralManagerScanOptionAllowDuplicatesKey: true
+            ]
+            self.centralManager?.scanForPeripherals(withServices: nil, options: aggressiveOptions)
+        }
+        
+        // Try to retrieve previously connected peripherals after 4 seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
+            print("iOS: Trying to retrieve previously connected peripherals...")
+            let connectedPeripherals = self.centralManager?.retrieveConnectedPeripherals(withServices: self.printerServiceUUIDs) ?? []
+            print("iOS: Found \(connectedPeripherals.count) connected peripherals")
+            
+            for peripheral in connectedPeripherals {
+                print("iOS: Connected peripheral: \(peripheral.name ?? "Unknown") (\(peripheral.identifier.uuidString))")
+                self.addPeripheralToDiscoveredList(peripheral: peripheral, rssi: -50) // Default RSSI
+            }
+            
+            // Try to find devices that might be previously discovered but not connected
+            // This is a more aggressive approach for stubborn devices
+            print("iOS: Trying alternative discovery methods...")
+            
+            // Log current iOS Bluetooth state
+            print("iOS: Current Bluetooth state: \(self.centralManager?.state.rawValue ?? -1)")
+            
+            // Try scanning with no filters and extended options
+            let extendedOptions: [String: Any] = [
+                CBCentralManagerScanOptionAllowDuplicatesKey: true,
+                CBCentralManagerScanOptionSolicitedServiceUUIDsKey: self.printerServiceUUIDs
+            ]
+            self.centralManager?.scanForPeripherals(withServices: nil, options: extendedOptions)
+            
+            // Try to find MFi accessories
+            print("iOS: Checking for MFi accessories...")
+            let accessories = EAAccessoryManager.shared().connectedAccessories
+            print("iOS: Found \(accessories.count) MFi accessories")
+            
+            for accessory in accessories {
+                print("iOS: MFi accessory: \(accessory.name) - \(accessory.manufacturer)")
+                if accessory.name.contains("KPrinter") || accessory.name.contains("77a7") {
+                    print("iOS: Found KPrinter via MFi!")
+                    // Create a fake peripheral entry for MFi device
+                    let deviceInfo: [String: Any] = [
+                        "id": "mfi_\(accessory.connectionID)",
+                        "name": accessory.name,
+                        "address": "MFi:\(accessory.connectionID)",
+                        "type": "mfi",
+                        "rssi": -50,
+                        "isPaired": true
+                    ]
+                    
+                    self.discoveredDevices["mfi_\(accessory.connectionID)"] = deviceInfo
+                    
+                    DispatchQueue.main.async {
+                        self.deviceDiscoverySink?(deviceInfo)
+                    }
+                }
+            }
+        }
+        
+        // Final attempt with long duration scan after 6 seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + 6.0) {
+            print("iOS: Final attempt - Long duration scan...")
+            let finalOptions: [String: Any] = [
+                CBCentralManagerScanOptionAllowDuplicatesKey: true
+            ]
+            self.centralManager?.scanForPeripherals(withServices: nil, options: finalOptions)
+            
+            // Stop this final scan after 10 seconds
+            DispatchQueue.main.asyncAfter(deadline: .now() + 10.0) {
+                print("iOS: Stopping final scan")
+                self.centralManager?.stopScan()
+            }
+        }
+        
+        // Try to manually add KPrinter if we know it exists but can't discover it
+        DispatchQueue.main.asyncAfter(deadline: .now() + 8.0) {
+            print("iOS: Adding manual KPrinter entry for stubborn device...")
+            
+            // Create a manual entry that user can try to connect to
+            let manualDeviceInfo: [String: Any] = [
+                "id": "manual_kprinter_77a7",
+                "name": "KPrinter_77a7 (Manual)",
+                "address": "XX:XX:XX:XX:77:A7",
+                "type": "ble_manual",
+                "rssi": -60,
+                "isPaired": false
+            ]
+            
+            self.discoveredDevices["manual_kprinter_77a7"] = manualDeviceInfo
+            
+            DispatchQueue.main.async {
+                self.deviceDiscoverySink?(manualDeviceInfo)
+            }
+        }
         
         result(nil)
+    }
+    
+    private func addPeripheralToDiscoveredList(peripheral: CBPeripheral, rssi: Int) {
+        // Get device name from peripheral
+        let deviceName = peripheral.name ?? "Unknown Device"
+        
+        // Convert iOS UUID to more readable format (last 12 characters)
+        let uuidString = peripheral.identifier.uuidString.replacingOccurrences(of: "-", with: "")
+        let shortAddress = String(uuidString.suffix(12)).uppercased()
+        let formattedAddress = stride(from: 0, to: shortAddress.count, by: 2).map {
+            let start = shortAddress.index(shortAddress.startIndex, offsetBy: $0)
+            let end = shortAddress.index(start, offsetBy: 2)
+            return String(shortAddress[start..<end])
+        }.joined(separator: ":")
+        
+        let deviceInfo: [String: Any] = [
+            "id": peripheral.identifier.uuidString,
+            "name": deviceName,
+            "address": formattedAddress,
+            "type": "ble",
+            "rssi": rssi,
+            "isPaired": false
+        ]
+        
+        // Only add if not already in list
+        if discoveredDevices[peripheral.identifier.uuidString] == nil {
+            discoveredDevices[peripheral.identifier.uuidString] = deviceInfo
+            
+            DispatchQueue.main.async {
+                self.deviceDiscoverySink?(deviceInfo)
+            }
+        }
     }
     
     private func stopScan(result: @escaping FlutterResult) {
@@ -212,7 +378,38 @@ public class SilverPrinterPlugin: NSObject, FlutterPlugin {
         updateConnectionState("connecting")
         pendingResult = result
         
-        let uuid = UUID(uuidString: deviceId)!
+        // Handle manual KPrinter connection attempt
+        if deviceId == "manual_kprinter_77a7" {
+            print("iOS: Attempting manual KPrinter connection...")
+            
+            // Try to find any peripheral with KPrinter in the name
+            // First stop current scanning
+            centralManager.stopScan()
+            
+            // Start a targeted scan for KPrinter
+            let targetedOptions: [String: Any] = [
+                CBCentralManagerScanOptionAllowDuplicatesKey: true
+            ]
+            
+            centralManager.scanForPeripherals(withServices: nil, options: targetedOptions)
+            
+            // Give it 5 seconds to find and connect
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+                print("iOS: Manual connection timeout")
+                self.updateConnectionState("disconnected")
+                result(false)
+            }
+            
+            return
+        }
+        
+        // Normal connection flow
+        guard let uuid = UUID(uuidString: deviceId) else {
+            updateConnectionState("disconnected")
+            result(false)
+            return
+        }
+        
         let peripherals = centralManager.retrievePeripherals(withIdentifiers: [uuid])
         
         if let peripheral = peripherals.first {
@@ -335,32 +532,62 @@ public class SilverPrinterPlugin: NSObject, FlutterPlugin {
             return
         }
         
-        // Send data in chunks to avoid overwhelming the printer (iOS BLE optimization)
-        let chunkSize = 20  // Small chunks for better reliability
-        var offset = 0
-        
-        func sendNextChunk() {
-            if offset < data.count {
-                let endIndex = min(offset + chunkSize, data.count)
-                let chunk = data.subdata(in: offset..<endIndex)
-                
-                peripheral.writeValue(chunk, for: characteristic, type: .withoutResponse)
-                offset = endIndex
-                
-                // Small delay between chunks for iOS optimization
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
-                    sendNextChunk()
-                }
-            } else {
-                // All chunks sent
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    self.updatePrinterStatus("ready")
-                    result(true)
-                }
-            }
+        // Use callback-based approach like Android for maximum speed
+        if characteristic.properties.contains(.writeWithoutResponse) {
+            writeChunkSize = 500  // Large chunks for no-response
+            print("iOS: Using writeWithoutResponse with \(writeChunkSize) byte chunks")
+        } else {
+            writeChunkSize = 200  // Medium chunks for response-based
+            print("iOS: Using writeWithResponse with \(writeChunkSize) byte chunks")
         }
         
-        sendNextChunk()
+        pendingWriteData = data
+        writeOffset = 0
+        pendingWriteResult = result
+        
+        print("iOS: Starting callback-based BLE print with \(data.count) bytes")
+        
+        // Start writing immediately
+        writeNextChunk()
+    }
+    
+    private func writeNextChunk() {
+        guard let data = pendingWriteData,
+              let peripheral = connectedPeripheral,
+              let characteristic = writeCharacteristic else {
+            print("iOS: Missing data or connection for chunk write")
+            return
+        }
+        
+        if writeOffset >= data.count {
+            // All data sent
+            print("iOS: BLE printing completed. Total bytes: \(data.count)")
+            pendingWriteData = nil
+            writeOffset = 0
+            
+            DispatchQueue.main.async {
+                self.updatePrinterStatus("ready")
+                self.pendingWriteResult?(true)
+                self.pendingWriteResult = nil
+            }
+            return
+        }
+        
+        let endIndex = min(writeOffset + writeChunkSize, data.count)
+        let chunk = data.subdata(in: writeOffset..<endIndex)
+        
+        let writeType: CBCharacteristicWriteType = characteristic.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
+        
+        peripheral.writeValue(chunk, for: characteristic, type: writeType)
+        writeOffset = endIndex
+        
+        // For writeWithoutResponse, continue immediately
+        // For writeWithResponse, wait for callback
+        if writeType == .withoutResponse {
+            // Send next chunk immediately for maximum speed
+            writeNextChunk()
+        }
+        // If writeWithResponse, the didWriteValueFor callback will trigger next chunk
     }
     
     private func convertImageToEscPos(image: UIImage, targetWidth: Int?, targetHeight: Int?) -> Data {
@@ -454,18 +681,63 @@ public class SilverPrinterPlugin: NSObject, FlutterPlugin {
 // MARK: - CBCentralManagerDelegate
 extension SilverPrinterPlugin: CBCentralManagerDelegate {
     public func centralManagerDidUpdateState(_ central: CBCentralManager) {
+        print("iOS: CBCentralManager state changed to: \(central.state.rawValue)")
         // Handle state changes if needed
     }
     
     public func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
+        // Get device name from advertisement data if not available from peripheral
+        let deviceName = peripheral.name ?? (advertisementData[CBAdvertisementDataLocalNameKey] as? String) ?? "Unknown Device"
+        
+        // Debug: Log ALL discovered devices
+        print("iOS: Discovered device: \(deviceName) (\(peripheral.identifier.uuidString)) RSSI: \(RSSI.intValue)")
+        print("iOS: Advertisement data: \(advertisementData)")
+        
+        // More lenient filtering - only skip if completely anonymous and very weak
+        if RSSI.intValue < -95 && deviceName == "Unknown Device" && (advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID])?.isEmpty != false {
+            print("iOS: Skipping very weak anonymous device")
+            return
+        }
+        
+        // Convert iOS UUID to more readable format (last 12 characters)
+        let uuidString = peripheral.identifier.uuidString.replacingOccurrences(of: "-", with: "")
+        let shortAddress = String(uuidString.suffix(12)).uppercased()
+        let formattedAddress = stride(from: 0, to: shortAddress.count, by: 2).map {
+            let start = shortAddress.index(shortAddress.startIndex, offsetBy: $0)
+            let end = shortAddress.index(start, offsetBy: 2)
+            return String(shortAddress[start..<end])
+        }.joined(separator: ":")
+        
         let deviceInfo: [String: Any] = [
             "id": peripheral.identifier.uuidString,
-            "name": peripheral.name ?? "Unknown Device",
-            "address": peripheral.identifier.uuidString,
+            "name": deviceName,
+            "address": formattedAddress,
             "type": "ble",
             "rssi": RSSI.intValue,
             "isPaired": false
         ]
+        
+        // Check if this might be the KPrinter we're looking for during manual connection
+        if deviceName.contains("KPrinter") || deviceName.contains("77a7") {
+            print("iOS: Found potential KPrinter during scan: \(deviceName)")
+            
+            // If we're in manual connection mode, try to connect immediately
+            if pendingResult != nil {
+                print("iOS: Attempting immediate connection to found KPrinter")
+                connectedPeripheral = peripheral
+                peripheral.delegate = self
+                centralManager?.connect(peripheral, options: nil)
+                return
+            }
+        }
+        
+        // Only update and send if this is a new device or RSSI changed significantly
+        if let existingDevice = discoveredDevices[peripheral.identifier.uuidString] {
+            let existingRSSI = existingDevice["rssi"] as? Int ?? -100
+            if abs(RSSI.intValue - existingRSSI) < 5 { // RSSI hasn't changed much
+                return
+            }
+        }
         
         discoveredDevices[peripheral.identifier.uuidString] = deviceInfo
         
@@ -510,13 +782,39 @@ extension SilverPrinterPlugin: CBPeripheralDelegate {
     public func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
         guard let characteristics = service.characteristics else { return }
         
+        print("iOS: Discovered service: \(service.uuid)")
+        
         for characteristic in characteristics {
+            print("iOS: Found characteristic: \(characteristic.uuid), properties: \(characteristic.properties.rawValue)")
+            
+            // Priority: writeWithoutResponse > write
             if characteristic.properties.contains(.writeWithoutResponse) {
                 writeCharacteristic = characteristic
+                print("iOS: Selected writeWithoutResponse characteristic: \(characteristic.uuid)")
                 break
-            } else if characteristic.properties.contains(.write) {
+            } else if characteristic.properties.contains(.write) && writeCharacteristic == nil {
                 writeCharacteristic = characteristic
+                print("iOS: Selected write characteristic: \(characteristic.uuid)")
             }
+        }
+    }
+    
+    public func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
+        if let error = error {
+            print("iOS: Write error: \(error)")
+            pendingWriteData = nil
+            writeOffset = 0
+            DispatchQueue.main.async {
+                self.updatePrinterStatus("error")
+                self.pendingWriteResult?(false)
+                self.pendingWriteResult = nil
+            }
+            return
+        }
+        
+        // Continue with next chunk for writeWithResponse
+        if characteristic.properties.contains(.write) && !characteristic.properties.contains(.writeWithoutResponse) {
+            writeNextChunk()
         }
     }
 }

@@ -14,10 +14,27 @@ A comprehensive Flutter plugin for connecting to thermal/POS printers via Blueto
 
 ## Platform Support
 
-| Platform | Classic Bluetooth | Bluetooth LE | Notes |
-|----------|-------------------|--------------|--------|
-| Android  | ✅                | ✅           | Full support for both protocols |
-| iOS      | ❌                | ✅           | iOS only supports BLE for printing |
+| Platform | Classic Bluetooth | Bluetooth LE | Performance |
+|----------|-------------------|--------------|-------------|
+| Android  | ✅ Full Support   | ✅ Full Support | 🟢 Fast (1-2 seconds) |
+| iOS      | ❌ Not Supported  | ✅ Limited Support | 🟡 Slow (10-15 seconds) |
+
+## Printer Compatibility
+
+### 🟢 Android - Full Support
+- **KPrinter_77a7 (JK-5802H)**: USB+BT → ✅ Fast printing
+- **PT-280**: USB+Bluetooth → ✅ Fast printing  
+- **All thermal printers**: Both Bluetooth Classic and BLE
+
+### 🟡 iOS - Limited Support
+- **KPrinter_77a7 (JK-5802H)**: USB+BT → ❌ Not supported (Bluetooth Classic)
+- **PT-280**: USB+Bluetooth → ⚠️ Slow printing (BLE limitations)
+- **BLE printers only**: Must use "Bluetooth" not "BT" interface
+
+### How to Identify Compatible Printers
+Look at the printer's interface specification:
+- **"USB+BT"** = Bluetooth Classic → Android only
+- **"USB+Bluetooth"** = BLE → Both platforms (iOS slower)
 
 ## Installation
 
@@ -225,9 +242,11 @@ The plugin includes special optimizations for iOS:
 
 ### Common Issues
 
-1. **iOS prints slowly**: This is expected for BLE connections. The plugin optimizes for reliability over speed.
-2. **Android can't find device**: Ensure location permissions are granted for Bluetooth scanning.
-3. **Connection fails**: Try pairing the device in system settings first (Android only).
+1. **iOS prints slowly**: This is a platform limitation. iOS BLE throughput is restricted compared to Android.
+2. **iOS can't find printer**: Check if printer uses Bluetooth Classic (BT) - not supported on iOS.
+3. **Android can't find device**: Ensure location permissions are granted for Bluetooth scanning.
+4. **Connection fails**: Try pairing the device in system settings first (Android only).
+5. **Print quality issues**: Ensure printer has adequate battery and paper is loaded correctly.
 
 ### Debug Tips
 

@@ -287,14 +287,20 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
       val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, scanResult: ScanResult) {
           val device = scanResult.device
+          
+          // Get device name from scan record if not available from device object
+          val deviceName = device.name ?: scanResult.scanRecord?.deviceName ?: "Unknown Device"
+          
           val deviceInfo = mapOf<String, Any>(
             "id" to device.address,
-            "name" to (device.name ?: "Unknown Device"),
+            "name" to deviceName,
             "address" to device.address,
             "type" to "ble",
             "rssi" to scanResult.rssi,
             "isPaired" to false
           )
+          
+          Log.d(TAG, "Found BLE device: $deviceName (${device.address}) RSSI: ${scanResult.rssi}")
           
           discoveredDevices[device.address] = deviceInfo
           deviceDiscoverySink?.success(deviceInfo)
