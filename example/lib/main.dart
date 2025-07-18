@@ -3,6 +3,7 @@ import 'package:flutter/rendering.dart';
 import 'dart:async';
 import 'dart:ui' as ui;
 import 'package:silver_printer/silver_printer.dart' as printer;
+import 'package:permission_handler/permission_handler.dart';
 
 /*
   SILVER PRINTER PLUGIN - QUICK SETUP GUIDE
@@ -79,6 +80,9 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Future<void> _initializeBluetooth() async {
+    // Request all required permissions first
+    await _requestPermissions();
+    
     final available = await _printer.isBluetoothAvailable();
     setState(() {
       _bluetoothAvailable = available;
@@ -86,6 +90,25 @@ class _MainScreenState extends State<MainScreen> {
     
     if (!available) {
       await _printer.requestBluetoothPermissions();
+    }
+  }
+
+  Future<void> _requestPermissions() async {
+    // Request Bluetooth permissions
+    final bluetoothPermissions = [
+      Permission.bluetooth,
+      Permission.bluetoothScan,
+      Permission.bluetoothConnect,
+      Permission.bluetoothAdvertise,
+      Permission.location,
+      Permission.locationWhenInUse,
+    ];
+
+    for (final permission in bluetoothPermissions) {
+      final status = await permission.status;
+      if (status.isDenied) {
+        await permission.request();
+      }
     }
   }
 
@@ -705,6 +728,7 @@ class _PrintPreviewScreenState extends State<PrintPreviewScreen> {
             settings: {
               'density': 'medium',
               'alignment': 'center',
+              'feedLines': 30,
             },
           );
 

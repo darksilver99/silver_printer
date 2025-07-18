@@ -601,7 +601,15 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
       val bitmap = BitmapFactory.decodeByteArray(imageData, 0, imageData.size)
       val escPosData = convertBitmapToEscPos(bitmap, width, height)
       
-      sendDataToPrinter(escPosData, result)
+      // Add feed lines if specified
+      val feedLines = settings?.get("feedLines") as? Int ?: 0
+      val finalData = if (feedLines > 0) {
+        escPosData + generateFeedLines(feedLines)
+      } else {
+        escPosData
+      }
+      
+      sendDataToPrinter(finalData, result)
     } catch (e: Exception) {
       Log.e(TAG, "Print image failed", e)
       updatePrinterStatus("error")
@@ -942,6 +950,15 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
     }
     
     return escPosData.toByteArray()
+  }
+
+  private fun generateFeedLines(lines: Int): ByteArray {
+    val feedData = ArrayList<Byte>()
+    // ESC/POS line feed command (0x0A = LF)
+    repeat(lines) {
+      feedData.add(0x0A.toByte())
+    }
+    return feedData.toByteArray()
   }
 
   private fun updateConnectionState(state: String) {
