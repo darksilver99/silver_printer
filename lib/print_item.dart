@@ -12,10 +12,10 @@ abstract class PrintItem {
   /// Create a text print item
   factory PrintItem.text(
     String content, {
-    TextAlignment alignment = TextAlignment.left,
-    TextSize size = TextSize.normal,
-    bool bold = false,
-    bool underline = false,
+    TextAlignment? alignment,
+    TextSize? size,
+    bool? bold,
+    bool? underline,
   }) = PrintTextItem;
   
   /// Create an image print item
@@ -23,7 +23,7 @@ abstract class PrintItem {
     Uint8List imageData, {
     int? width,
     int? height,
-    ImageAlignment alignment = ImageAlignment.center,
+    ImageAlignment? alignment,
   }) = PrintImageItem;
   
   /// Create a line feed item
@@ -65,11 +65,15 @@ class PrintTextItem extends PrintItem {
   
   const PrintTextItem(
     this.content, {
-    this.alignment = TextAlignment.left,
-    this.size = TextSize.normal,
-    this.bold = false,
-    this.underline = false,
-  }) : super('text');
+    TextAlignment? alignment,
+    TextSize? size,
+    bool? bold,
+    bool? underline,
+  }) : alignment = alignment ?? TextAlignment.left,
+       size = size ?? TextSize.normal,
+       bold = bold ?? false,
+       underline = underline ?? false,
+       super('text');
   
   @override
   Map<String, dynamic> toMap() {
@@ -95,8 +99,9 @@ class PrintImageItem extends PrintItem {
     this.imageData, {
     this.width,
     this.height,
-    this.alignment = ImageAlignment.center,
-  }) : super('image');
+    ImageAlignment? alignment,
+  }) : alignment = alignment ?? ImageAlignment.center,
+       super('image');
   
   @override
   Map<String, dynamic> toMap() {
