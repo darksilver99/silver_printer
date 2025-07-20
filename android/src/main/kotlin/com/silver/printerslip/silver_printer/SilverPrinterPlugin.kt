@@ -895,15 +895,18 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
     )
     
     val finalWidth = if (targetWidth != null) {
-      minOf(targetWidth, (originalWidth * scaleFactor).toInt())
+      targetWidth // Use specified width directly
     } else {
-      (originalWidth * scaleFactor).toInt()
+      // Default thermal printer width (58mm = 384px, 80mm = 576px)
+      384 // Default to 58mm paper
     }
     
     val finalHeight = if (targetHeight != null) {
       minOf(targetHeight, (originalHeight * scaleFactor).toInt())
     } else {
-      (originalHeight * scaleFactor).toInt()
+      // Calculate height proportionally to maintain aspect ratio with final width
+      val aspectRatio = originalHeight.toFloat() / originalWidth.toFloat()
+      (finalWidth * aspectRatio).toInt()
     }
     
     // Create scaled bitmap with memory optimization and better quality
@@ -926,6 +929,9 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
     // Process image in chunks to avoid OOM
     val chunkHeight = minOf(100, height) // Process 100 rows at a time
     val escPosData = ArrayList<Byte>()
+    
+    // Add center alignment command
+    escPosData.addAll(listOf(0x1B, 0x61, 0x01).map { it.toByte() }) // ESC a 1 (center)
     
     // ESC/POS image header
     escPosData.addAll(listOf(0x1D, 0x76, 0x30, 0x00).map { it.toByte() })
@@ -960,6 +966,9 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
         }
       }
     }
+    
+    // Reset alignment to left
+    escPosData.addAll(listOf(0x1B, 0x61, 0x00).map { it.toByte() }) // ESC a 0 (left)
     
     // Clean up
     if (processedBitmap != resizedBitmap) {

@@ -724,8 +724,8 @@ class _PrintPreviewScreenState extends State<PrintPreviewScreen> {
         if (imageBytes != null) {
           final success = await _printer.printImage(
             imageBytes,
-            width: 384,
-            height: (384 * image.height / image.width).round(),
+            // ไม่ระบุ width = ใช้ default 384 (58mm paper)
+            // หรือใช้ width: 576 สำหรับกระดาษ 80mm
             settings: {
               'density': 'medium',
               'alignment': 'center',
@@ -805,10 +805,16 @@ class _PrintPreviewScreenState extends State<PrintPreviewScreen> {
                       foodList: [
                         FoodItem(tmpSubject: 'ข้าวผัดกุ้ง', quantity: 2, tmpPrice: 120.0),
                         FoodItem(tmpSubject: 'ต้มยำกุ้ง', quantity: 1, tmpPrice: 180.0),
+                        FoodItem(tmpSubject: 'ผัดไทย', quantity: 1, tmpPrice: 80.0, status: 'ยกเลิก'),
+                        FoodItem(tmpSubject: 'ส้มตำ', quantity: 1, tmpPrice: 60.0),
+                        FoodItem(tmpSubject: 'แกงเขียวหวาน', quantity: 1, tmpPrice: 150.0),
+                        FoodItem(tmpSubject: 'ข้าวเปล่า', quantity: 3, tmpPrice: 30.0),
                       ],
                       orderStatus: 'เสร็จสิ้น',
                       userName: 'ร้านอาหารทดสอบ',
-                      bottomText: 'ขอบคุณที่ใช้บริการ',
+                      topImageUrl: 'https://firebasestorage.googleapis.com/v0/b/food-menu-harl5o.firebasestorage.app/o/users%2FgPFgbp7F8IfPBCnUt7vjybyhtp72%2Fuploads%2F1752934236783334.png?alt=media&token=79570d98-7d8f-4931-b157-a71d6df1f305',
+                      bottomImageUrl: 'https://firebasestorage.googleapis.com/v0/b/food-menu-harl5o.firebasestorage.app/o/users%2FPXR7FTHYlJSAqCIkJlyMyeFGp513%2Fuploads%2F1742308148653468.jpg?alt=media&token=f4f6f631-09e8-4aab-ab38-38d3a5b77617',
+                      bottomText: 'สแกน QR Code เพื่อชำระเงิน\nขอบคุณที่ใช้บริการ\nโทร 02-123-4567',
                     ),
                     ),
                   ),
