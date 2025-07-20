@@ -8,7 +8,9 @@
       "Bash(flutter build:*)",
       "Bash(grep:*)",
       "Bash(flutter:*)",
-      "Bash(adb:*)"
+      "Bash(adb:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "deny": []
   }
