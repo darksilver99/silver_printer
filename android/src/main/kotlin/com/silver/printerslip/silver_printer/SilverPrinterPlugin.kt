@@ -876,7 +876,7 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
 
   private fun convertBitmapToEscPos(bitmap: Bitmap, targetWidth: Int?, targetHeight: Int?): ByteArray {
     // Calculate optimal size to prevent OOM
-    val maxDimension = 576 // Common thermal printer width
+    val maxDimension = 800 // Increase max dimension for better quality
     val originalWidth = bitmap.width
     val originalHeight = bitmap.height
     
@@ -899,15 +899,22 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
       (originalHeight * scaleFactor).toInt()
     }
     
-    // Create scaled bitmap with memory optimization
+    // Create scaled bitmap with memory optimization and better quality
     val resizedBitmap = if (finalWidth != originalWidth || finalHeight != originalHeight) {
       Bitmap.createScaledBitmap(bitmap, finalWidth, finalHeight, true)
     } else {
       bitmap
     }
+    
+    // Ensure bitmap is in ARGB_8888 format for better color processing
+    val processedBitmap = if (resizedBitmap.config != Bitmap.Config.ARGB_8888) {
+      resizedBitmap.copy(Bitmap.Config.ARGB_8888, false)
+    } else {
+      resizedBitmap
+    }
 
-    val width = resizedBitmap.width
-    val height = resizedBitmap.height
+    val width = processedBitmap.width
+    val height = processedBitmap.height
     
     // Process image in chunks to avoid OOM
     val chunkHeight = minOf(100, height) // Process 100 rows at a time
@@ -922,7 +929,7 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
     for (startY in 0 until height step chunkHeight) {
       val endY = minOf(startY + chunkHeight, height)
       val chunkPixels = IntArray(width * (endY - startY))
-      resizedBitmap.getPixels(chunkPixels, 0, width, 0, startY, width, endY - startY)
+      processedBitmap.getPixels(chunkPixels, 0, width, 0, startY, width, endY - startY)
       
       // Convert chunk to bitmap data
       for (y in 0 until (endY - startY)) {
@@ -931,10 +938,13 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
           for (bit in 0 until 8) {
             if (x + bit < width) {
               val pixel = chunkPixels[y * width + x + bit]
-              val gray = (0.299 * ((pixel shr 16) and 0xFF) + 
-                         0.587 * ((pixel shr 8) and 0xFF) + 
-                         0.114 * (pixel and 0xFF)).toInt()
-              if (gray < 128) {
+              val red = (pixel shr 16) and 0xFF
+              val green = (pixel shr 8) and 0xFF
+              val blue = pixel and 0xFF
+              val gray = (0.299 * red + 0.587 * green + 0.114 * blue).toInt()
+              
+              // Improve threshold for better contrast
+              if (gray < 180) { // Increase threshold from 128 to 180
                 byte = byte or (1 shl (7 - bit))
               }
             }
@@ -945,6 +955,9 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
     }
     
     // Clean up
+    if (processedBitmap != resizedBitmap) {
+      processedBitmap.recycle()
+    }
     if (resizedBitmap != bitmap) {
       resizedBitmap.recycle()
     }
