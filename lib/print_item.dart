@@ -27,10 +27,10 @@ abstract class PrintItem {
   }) = PrintImageItem;
   
   /// Create a line feed item
-  factory PrintItem.lineFeed([int lines = 1]) = PrintLineFeedItem;
+  factory PrintItem.lineFeed([int? lines]) = PrintLineFeedItem;
   
   /// Create a divider line
-  factory PrintItem.divider({String character = '-', int? width}) = PrintDividerItem;
+  factory PrintItem.divider({String? character, int? width}) = PrintDividerItem;
 }
 
 /// Text alignment options
@@ -119,7 +119,7 @@ class PrintImageItem extends PrintItem {
 class PrintLineFeedItem extends PrintItem {
   final int lines;
   
-  const PrintLineFeedItem([this.lines = 1]) : super('lineFeed');
+  const PrintLineFeedItem([int? lines]) : lines = lines ?? 1, super('lineFeed');
   
   @override
   Map<String, dynamic> toMap() {
@@ -136,9 +136,10 @@ class PrintDividerItem extends PrintItem {
   final int? width;
   
   const PrintDividerItem({
-    this.character = '-',
+    String? character,
     this.width,
-  }) : super('divider');
+  }) : character = character ?? '-',
+       super('divider');
   
   @override
   Map<String, dynamic> toMap() {
