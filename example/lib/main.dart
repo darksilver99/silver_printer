@@ -728,6 +728,7 @@ class _PrintPreviewScreenState extends State<PrintPreviewScreen> {
             settings: {
               'density': 'medium',
               'alignment': 'center',
+              'feedLines': 3,
             },
           );
 
