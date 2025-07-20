@@ -895,7 +895,8 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
     )
     
     val finalWidth = if (targetWidth != null) {
-      targetWidth // Use specified width directly
+      // Ensure width is divisible by 8 for ESC/POS compatibility
+      (targetWidth / 8) * 8
     } else {
       // Default thermal printer width (58mm = 384px, 80mm = 576px)
       384 // Default to 58mm paper
