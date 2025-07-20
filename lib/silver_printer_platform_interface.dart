@@ -2,6 +2,7 @@ import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'dart:typed_data';
 
 import 'silver_printer_method_channel.dart';
+import 'print_item.dart';
 
 enum BluetoothDeviceType {
   classic,
@@ -205,6 +206,11 @@ abstract class SilverPrinterPlatform extends PlatformInterface {
   /// Send raw ESC/POS commands
   Future<bool> sendRawData(Uint8List data) {
     throw UnimplementedError('sendRawData() has not been implemented.');
+  }
+
+  /// Print hybrid content (mix of text and images)
+  Future<bool> printHybrid(List<PrintItem> items, {Map<String, dynamic>? settings}) {
+    throw UnimplementedError('printHybrid() has not been implemented.');
   }
 
   /// Get device discovery stream

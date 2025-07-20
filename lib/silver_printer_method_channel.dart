@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'dart:async';
 
 import 'silver_printer_platform_interface.dart';
+import 'print_item.dart';
 
 /// An implementation of [SilverPrinterPlatform] that uses method channels.
 class MethodChannelSilverPrinter extends SilverPrinterPlatform {
@@ -164,6 +165,16 @@ class MethodChannelSilverPrinter extends SilverPrinterPlatform {
   @override
   Future<bool> sendRawData(Uint8List data) async {
     final result = await methodChannel.invokeMethod<bool>('sendRawData', {'data': data});
+    return result ?? false;
+  }
+
+  @override
+  Future<bool> printHybrid(List<PrintItem> items, {Map<String, dynamic>? settings}) async {
+    final serializedItems = items.map((item) => item.toMap()).toList();
+    final result = await methodChannel.invokeMethod<bool>('printHybrid', {
+      'items': serializedItems,
+      'settings': settings ?? {},
+    });
     return result ?? false;
   }
 
