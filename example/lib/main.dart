@@ -726,6 +726,7 @@ class _PrintPreviewScreenState extends State<PrintPreviewScreen> {
             imageBytes,
             // ไม่ระบุ width = ใช้ default 384 (58mm paper)
             // หรือใช้ width: 576 สำหรับกระดาษ 80mm
+            width: 576,
             settings: {
               'density': 'medium',
               'alignment': 'center',

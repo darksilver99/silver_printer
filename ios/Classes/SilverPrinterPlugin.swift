@@ -467,7 +467,7 @@ public class SilverPrinterPlugin: NSObject, FlutterPlugin {
             return
         }
         
-        let escPosData = convertImageToEscPos(image: image, targetWidth: width, targetHeight: height)
+        let escPosData = convertImageToEscPos(image: image, targetWidth: width, targetHeight: height, settings: settings)
         sendDataToPrinter(data: escPosData, result: result)
     }
     
@@ -488,7 +488,7 @@ public class SilverPrinterPlugin: NSObject, FlutterPlugin {
         }
         
         if let imageData = imageData, let image = UIImage(data: imageData) {
-            let imageEscPos = convertImageToEscPos(image: image, targetWidth: width, targetHeight: height)
+            let imageEscPos = convertImageToEscPos(image: image, targetWidth: width, targetHeight: height, settings: settings)
             escPos.append(imageEscPos)
         }
         
@@ -590,15 +590,21 @@ public class SilverPrinterPlugin: NSObject, FlutterPlugin {
         // If writeWithResponse, the didWriteValueFor callback will trigger next chunk
     }
     
-    private func convertImageToEscPos(image: UIImage, targetWidth: Int?, targetHeight: Int?) -> Data {
-        // Resize image if needed for better performance
-        let resizedImage: UIImage
-        if let targetWidth = targetWidth, let targetHeight = targetHeight {
-            resizedImage = resizeImage(image: image, targetSize: CGSize(width: targetWidth, height: targetHeight))
+    private func convertImageToEscPos(image: UIImage, targetWidth: Int?, targetHeight: Int?, settings: [String: Any]? = nil) -> Data {
+        // Ensure width is divisible by 8 for ESC/POS compatibility
+        let finalWidth: Int
+        if let targetWidth = targetWidth {
+            finalWidth = (targetWidth / 8) * 8
         } else {
-            // Default to printer-friendly size
-            resizedImage = resizeImage(image: image, targetSize: CGSize(width: 384, height: 384))
+            finalWidth = 384 // Default to 58mm paper
         }
+        
+        // Calculate height maintaining aspect ratio
+        let aspectRatio = image.size.height / image.size.width
+        let finalHeight = Int(Double(finalWidth) * Double(aspectRatio))
+        
+        // Resize image
+        let resizedImage = resizeImage(image: image, targetSize: CGSize(width: finalWidth, height: finalHeight))
         
         guard let cgImage = resizedImage.cgImage else { return Data() }
         
@@ -615,6 +621,9 @@ public class SilverPrinterPlugin: NSObject, FlutterPlugin {
         context?.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
         
         var escPosData = Data()
+        
+        // Add center alignment command
+        escPosData.append(Data([0x1B, 0x61, 0x01])) // ESC a 1 (center)
         
         // ESC/POS image header
         escPosData.append(Data([0x1D, 0x76, 0x30, 0x00]))
@@ -636,6 +645,16 @@ public class SilverPrinterPlugin: NSObject, FlutterPlugin {
                 escPosData.append(byte)
             }
         }
+        
+        // Add feed lines if specified
+        if let settings = settings, let feedLines = settings["feedLines"] as? Int, feedLines > 0 {
+            for _ in 0..<feedLines {
+                escPosData.append(Data([0x0A])) // Line feed
+            }
+        }
+        
+        // Reset alignment to left
+        escPosData.append(Data([0x1B, 0x61, 0x00])) // ESC a 0 (left)
         
         return escPosData
     }
