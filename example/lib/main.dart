@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:ui' as ui;
 import 'package:silver_printer/silver_printer.dart' as printer;
 import 'package:permission_handler/permission_handler.dart';
+import 'complex_receipt_widget.dart';
 
 /*
   SILVER PRINTER PLUGIN - QUICK SETUP GUIDE
@@ -786,20 +787,30 @@ class _PrintPreviewScreenState extends State<PrintPreviewScreen> {
             ),
           ),
           Expanded(
-            child: Center(
-              child: Container(
-                width: 300,
-                padding: const EdgeInsets.all(16),
-                child: RepaintBoundary(
-                  key: _repaintBoundaryKey,
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      border: Border.all(color: Colors.grey[300]!),
-                      borderRadius: BorderRadius.circular(8),
+            child: SingleChildScrollView(
+              child: Center(
+                child: Container(
+                  width: 300,
+                  padding: const EdgeInsets.all(16),
+                  child: RepaintBoundary(
+                    key: _repaintBoundaryKey,
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        border: Border.all(color: Colors.grey[300]!),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    child: ComplexReceiptWidget(
+                      foodList: [
+                        FoodItem(tmpSubject: 'ข้าวผัดกุ้ง', quantity: 2, tmpPrice: 120.0),
+                        FoodItem(tmpSubject: 'ต้มยำกุ้ง', quantity: 1, tmpPrice: 180.0),
+                      ],
+                      orderStatus: 'เสร็จสิ้น',
+                      userName: 'ร้านอาหารทดสอบ',
+                      bottomText: 'ขอบคุณที่ใช้บริการ',
                     ),
-                    child: const ReceiptWidget(),
+                    ),
                   ),
                 ),
               ),

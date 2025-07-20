@@ -875,10 +875,17 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
   }
 
   private fun convertBitmapToEscPos(bitmap: Bitmap, targetWidth: Int?, targetHeight: Int?): ByteArray {
-    // Calculate optimal size to prevent OOM
-    val maxDimension = 800 // Increase max dimension for better quality
+    // Calculate optimal size to prevent OOM with special handling for tall images
     val originalWidth = bitmap.width
     val originalHeight = bitmap.height
+    val aspectRatio = originalHeight.toFloat() / originalWidth.toFloat()
+    
+    // Use smaller max dimension for very tall images (aspect ratio > 2)
+    val maxDimension = if (aspectRatio > 2.0f) {
+      400 // Smaller for tall images like receipts
+    } else {
+      600 // Standard size for normal images
+    }
     
     // Calculate scaling factor to fit within memory constraints
     val scaleFactor = minOf(
