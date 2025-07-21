@@ -3,12 +3,12 @@ import 'dart:typed_data';
 /// Base class for hybrid print items
 abstract class PrintItem {
   final String type;
-  
+
   const PrintItem(this.type);
-  
+
   /// Convert to map for method channel communication
   Map<String, dynamic> toMap();
-  
+
   /// Create a text print item
   factory PrintItem.text(
     String content, {
@@ -17,7 +17,7 @@ abstract class PrintItem {
     bool? bold,
     bool? underline,
   }) = PrintTextItem;
-  
+
   /// Create an image print item
   factory PrintItem.image(
     Uint8List imageData, {
@@ -25,35 +25,22 @@ abstract class PrintItem {
     int? height,
     ImageAlignment? alignment,
   }) = PrintImageItem;
-  
+
   /// Create a line feed item
   factory PrintItem.lineFeed([int? lines]) = PrintLineFeedItem;
-  
+
   /// Create a divider line
   factory PrintItem.divider({String? character, int? width}) = PrintDividerItem;
 }
 
 /// Text alignment options
-enum TextAlignment {
-  left,
-  center,
-  right,
-}
+enum TextAlignment { left, center, right }
 
 /// Text size options
-enum TextSize {
-  small,
-  normal,
-  large,
-  extraLarge,
-}
+enum TextSize { small, normal, large, extraLarge }
 
 /// Image alignment options
-enum ImageAlignment {
-  left,
-  center,
-  right,
-}
+enum ImageAlignment { left, center, right }
 
 /// Text print item
 class PrintTextItem extends PrintItem {
@@ -62,7 +49,7 @@ class PrintTextItem extends PrintItem {
   final TextSize size;
   final bool bold;
   final bool underline;
-  
+
   const PrintTextItem(
     this.content, {
     TextAlignment? alignment,
@@ -74,7 +61,7 @@ class PrintTextItem extends PrintItem {
        bold = bold ?? false,
        underline = underline ?? false,
        super('text');
-  
+
   @override
   Map<String, dynamic> toMap() {
     return {
@@ -94,7 +81,7 @@ class PrintImageItem extends PrintItem {
   final int? width;
   final int? height;
   final ImageAlignment alignment;
-  
+
   const PrintImageItem(
     this.imageData, {
     this.width,
@@ -102,7 +89,7 @@ class PrintImageItem extends PrintItem {
     ImageAlignment? alignment,
   }) : alignment = alignment ?? ImageAlignment.center,
        super('image');
-  
+
   @override
   Map<String, dynamic> toMap() {
     return {
@@ -118,15 +105,12 @@ class PrintImageItem extends PrintItem {
 /// Line feed print item
 class PrintLineFeedItem extends PrintItem {
   final int lines;
-  
+
   const PrintLineFeedItem([int? lines]) : lines = lines ?? 1, super('lineFeed');
-  
+
   @override
   Map<String, dynamic> toMap() {
-    return {
-      'type': type,
-      'lines': lines,
-    };
+    return {'type': type, 'lines': lines};
   }
 }
 
@@ -134,19 +118,13 @@ class PrintLineFeedItem extends PrintItem {
 class PrintDividerItem extends PrintItem {
   final String character;
   final int? width;
-  
-  const PrintDividerItem({
-    String? character,
-    this.width,
-  }) : character = character ?? '-',
-       super('divider');
-  
+
+  const PrintDividerItem({String? character, this.width})
+    : character = character ?? '-',
+      super('divider');
+
   @override
   Map<String, dynamic> toMap() {
-    return {
-      'type': type,
-      'character': character,
-      'width': width,
-    };
+    return {'type': type, 'character': character, 'width': width};
   }
 }

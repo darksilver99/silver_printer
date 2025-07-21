@@ -223,6 +223,15 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
           result.error("INVALID_ARGUMENT", "Data is required", null)
         }
       }
+      "printHybrid" -> {
+        val items = call.argument<List<Map<String, Any>>>("items")
+        val settings = call.argument<Map<String, Any>>("settings")
+        if (items != null) {
+          printHybrid(items, settings, result)
+        } else {
+          result.error("INVALID_ARGUMENT", "Items are required", null)
+        }
+      }
       else -> {
         result.notImplemented()
       }
@@ -687,6 +696,111 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
     }
 
     sendDataToPrinter(data, result)
+  }
+
+  private fun printHybrid(items: List<Map<String, Any>>, settings: Map<String, Any>?, result: Result) {
+    if (connectionState != "connected") {
+      result.error("NOT_CONNECTED", "No device connected", null)
+      return
+    }
+
+    try {
+      updatePrinterStatus("busy")
+      
+      val escPosData = ArrayList<Byte>()
+      escPosData.addAll(listOf(0x1B, 0x40).map { it.toByte() }) // Initialize printer
+      
+      for (item in items) {
+        val type = item["type"] as? String ?: continue
+        
+        when (type) {
+          "text" -> {
+            val content = item["content"] as? String ?: ""
+            val alignment = item["alignment"] as? String ?: "left"
+            val size = item["size"] as? String ?: "normal"
+            val bold = item["bold"] as? Boolean ?: false
+            val underline = item["underline"] as? Boolean ?: false
+            
+            // Add text formatting commands
+            when (alignment) {
+              "center" -> escPosData.addAll(listOf(0x1B, 0x61, 0x01).map { it.toByte() })
+              "right" -> escPosData.addAll(listOf(0x1B, 0x61, 0x02).map { it.toByte() })
+              else -> escPosData.addAll(listOf(0x1B, 0x61, 0x00).map { it.toByte() }) // left
+            }
+            
+            // Text size
+            when (size) {
+              "small" -> escPosData.addAll(listOf(0x1D, 0x21, 0x00).map { it.toByte() })
+              "large" -> escPosData.addAll(listOf(0x1D, 0x21, 0x11).map { it.toByte() })
+              "extraLarge" -> escPosData.addAll(listOf(0x1D, 0x21, 0x22).map { it.toByte() })
+              else -> escPosData.addAll(listOf(0x1D, 0x21, 0x00).map { it.toByte() }) // normal
+            }
+            
+            // Bold
+            if (bold) {
+              escPosData.addAll(listOf(0x1B, 0x45, 0x01).map { it.toByte() })
+            }
+            
+            // Underline
+            if (underline) {
+              escPosData.addAll(listOf(0x1B, 0x2D, 0x01).map { it.toByte() })
+            }
+            
+            // Add text content
+            escPosData.addAll(content.toByteArray().toList())
+            escPosData.add(0x0A.toByte()) // Line feed
+            
+            // Reset formatting
+            escPosData.addAll(listOf(0x1B, 0x45, 0x00).map { it.toByte() }) // Bold off
+            escPosData.addAll(listOf(0x1B, 0x2D, 0x00).map { it.toByte() }) // Underline off
+            escPosData.addAll(listOf(0x1D, 0x21, 0x00).map { it.toByte() }) // Normal size
+            escPosData.addAll(listOf(0x1B, 0x61, 0x00).map { it.toByte() }) // Left align
+          }
+          
+          "image" -> {
+            val imageData = item["imageData"] as? ByteArray
+            if (imageData != null) {
+              val width = item["width"] as? Int
+              val height = item["height"] as? Int
+              val alignment = item["alignment"] as? String ?: "center"
+              
+              val bitmap = BitmapFactory.decodeByteArray(imageData, 0, imageData.size)
+              val imageEscPos = convertBitmapToEscPos(bitmap, width, height)
+              escPosData.addAll(imageEscPos.toList())
+            }
+          }
+          
+          "lineFeed" -> {
+            val lines = item["lines"] as? Int ?: 1
+            repeat(lines) {
+              escPosData.add(0x0A.toByte())
+            }
+          }
+          
+          "divider" -> {
+            val character = item["character"] as? String ?: "-"
+            val width = item["width"] as? Int ?: 32
+            val dividerText = character.repeat(width)
+            escPosData.addAll(listOf(0x1B, 0x61, 0x01).map { it.toByte() }) // Center
+            escPosData.addAll(dividerText.toByteArray().toList())
+            escPosData.add(0x0A.toByte()) // Line feed
+            escPosData.addAll(listOf(0x1B, 0x61, 0x00).map { it.toByte() }) // Left align
+          }
+        }
+      }
+      
+      // Add final feed lines from settings if specified
+      val feedLines = settings?.get("feedLines") as? Int ?: 0
+      if (feedLines > 0) {
+        escPosData.addAll(generateFeedLines(feedLines).toList())
+      }
+      
+      sendDataToPrinter(escPosData.toByteArray(), result)
+    } catch (e: Exception) {
+      Log.e(TAG, "Print hybrid failed", e)
+      updatePrinterStatus("error")
+      result.success(false)
+    }
   }
 
   private fun sendDataToPrinter(data: ByteArray, result: Result) {

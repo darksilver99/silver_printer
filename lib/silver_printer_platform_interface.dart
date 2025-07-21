@@ -4,25 +4,11 @@ import 'dart:typed_data';
 import 'silver_printer_method_channel.dart';
 import 'print_item.dart';
 
-enum BluetoothDeviceType {
-  classic,
-  ble,
-  unknown,
-}
+enum BluetoothDeviceType { classic, ble, unknown }
 
-enum ConnectionState {
-  disconnected,
-  connecting,
-  connected,
-  disconnecting,
-}
+enum ConnectionState { disconnected, connecting, connected, disconnecting }
 
-enum PrinterStatus {
-  ready,
-  busy,
-  error,
-  offline,
-}
+enum PrinterStatus { ready, busy, error, offline }
 
 class BluetoothDevice {
   final String id;
@@ -120,12 +106,16 @@ abstract class SilverPrinterPlatform extends PlatformInterface {
 
   /// Check if Bluetooth is available and enabled
   Future<bool> isBluetoothAvailable() {
-    throw UnimplementedError('isBluetoothAvailable() has not been implemented.');
+    throw UnimplementedError(
+      'isBluetoothAvailable() has not been implemented.',
+    );
   }
 
   /// Request Bluetooth permissions (Android)
   Future<bool> requestBluetoothPermissions() {
-    throw UnimplementedError('requestBluetoothPermissions() has not been implemented.');
+    throw UnimplementedError(
+      'requestBluetoothPermissions() has not been implemented.',
+    );
   }
 
   /// Start scanning for Bluetooth devices
@@ -140,7 +130,9 @@ abstract class SilverPrinterPlatform extends PlatformInterface {
 
   /// Get list of discovered devices
   Future<List<BluetoothDevice>> getDiscoveredDevices() {
-    throw UnimplementedError('getDiscoveredDevices() has not been implemented.');
+    throw UnimplementedError(
+      'getDiscoveredDevices() has not been implemented.',
+    );
   }
 
   /// Get list of paired/bonded devices
@@ -184,7 +176,12 @@ abstract class SilverPrinterPlatform extends PlatformInterface {
   }
 
   /// Print image from bytes
-  Future<bool> printImage(Uint8List imageData, {int? width, int? height, Map<String, dynamic>? settings}) {
+  Future<bool> printImage(
+    Uint8List imageData, {
+    int? width,
+    int? height,
+    Map<String, dynamic>? settings,
+  }) {
     throw UnimplementedError('printImage() has not been implemented.');
   }
 
@@ -209,7 +206,10 @@ abstract class SilverPrinterPlatform extends PlatformInterface {
   }
 
   /// Print hybrid content (mix of text and images)
-  Future<bool> printHybrid(List<PrintItem> items, {Map<String, dynamic>? settings}) {
+  Future<bool> printHybrid(
+    List<PrintItem> items, {
+    Map<String, dynamic>? settings,
+  }) {
     throw UnimplementedError('printHybrid() has not been implemented.');
   }
 

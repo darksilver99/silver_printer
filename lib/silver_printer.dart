@@ -1,16 +1,21 @@
-
 import 'dart:typed_data';
 import 'silver_printer_platform_interface.dart';
 import 'print_item.dart';
 
-export 'silver_printer_platform_interface.dart' show BluetoothDevice, BluetoothDeviceType, ConnectionState, PrinterStatus, PrintJob;
+export 'silver_printer_platform_interface.dart'
+    show
+        BluetoothDevice,
+        BluetoothDeviceType,
+        ConnectionState,
+        PrinterStatus,
+        PrintJob;
 export 'print_item.dart';
 
 class SilverPrinter {
   static SilverPrinter? _instance;
-  
+
   SilverPrinter._();
-  
+
   static SilverPrinter get instance {
     _instance ??= SilverPrinter._();
     return _instance!;
@@ -121,8 +126,14 @@ class SilverPrinter {
   }
 
   /// Print hybrid content (mix of text and images) for better performance on iOS
-  Future<bool> printHybrid(List<PrintItem> items, {Map<String, dynamic>? settings}) {
-    return SilverPrinterPlatform.instance.printHybrid(items, settings: settings);
+  Future<bool> printHybrid(
+    List<PrintItem> items, {
+    Map<String, dynamic>? settings,
+  }) {
+    return SilverPrinterPlatform.instance.printHybrid(
+      items,
+      settings: settings,
+    );
   }
 
   /// Stream of newly discovered devices during scanning

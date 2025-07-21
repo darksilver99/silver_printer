@@ -51,10 +51,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Silver Printer Demo',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-        useMaterial3: true,
-      ),
+      theme: ThemeData(primarySwatch: Colors.blue, useMaterial3: true),
       home: const MainScreen(),
     );
   }
@@ -70,9 +67,10 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   final _printer = printer.SilverPrinter.instance;
   bool _bluetoothAvailable = false;
-  printer.ConnectionState _connectionState = printer.ConnectionState.disconnected;
+  printer.ConnectionState _connectionState =
+      printer.ConnectionState.disconnected;
   printer.BluetoothDevice? _connectedDevice;
-  
+
   @override
   void initState() {
     super.initState();
@@ -83,12 +81,12 @@ class _MainScreenState extends State<MainScreen> {
   Future<void> _initializeBluetooth() async {
     // Request all required permissions first
     await _requestPermissions();
-    
+
     final available = await _printer.isBluetoothAvailable();
     setState(() {
       _bluetoothAvailable = available;
     });
-    
+
     if (!available) {
       await _printer.requestBluetoothPermissions();
     }
@@ -140,14 +138,12 @@ class _MainScreenState extends State<MainScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const Center(
-        child: CircularProgressIndicator(),
-      ),
+      builder: (context) => const Center(child: CircularProgressIndicator()),
     );
-    
+
     // Check both connection state and printer status
     final isConnected = await _printer.isConnected();
-    
+
     // Try to ping the printer to verify actual connection
     bool actuallyConnected = false;
     if (isConnected) {
@@ -160,10 +156,10 @@ class _MainScreenState extends State<MainScreen> {
         actuallyConnected = false;
       }
     }
-    
+
     if (!mounted) return;
     Navigator.pop(context); // Close loading dialog
-    
+
     if (actuallyConnected) {
       Navigator.push(
         context,
@@ -204,17 +200,26 @@ class _MainScreenState extends State<MainScreen> {
                     children: [
                       const Text(
                         'Bluetooth Status',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Row(
                         children: [
                           Icon(
-                            _bluetoothAvailable ? Icons.bluetooth : Icons.bluetooth_disabled,
-                            color: _bluetoothAvailable ? Colors.blue : Colors.grey,
+                            _bluetoothAvailable
+                                ? Icons.bluetooth
+                                : Icons.bluetooth_disabled,
+                            color: _bluetoothAvailable
+                                ? Colors.blue
+                                : Colors.grey,
                           ),
                           const SizedBox(width: 8),
-                          Text(_bluetoothAvailable ? 'Available' : 'Unavailable'),
+                          Text(
+                            _bluetoothAvailable ? 'Available' : 'Unavailable',
+                          ),
                         ],
                       ),
                     ],
@@ -230,7 +235,10 @@ class _MainScreenState extends State<MainScreen> {
                     children: [
                       const Text(
                         'Connection Status',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Row(
@@ -247,11 +255,17 @@ class _MainScreenState extends State<MainScreen> {
                         const SizedBox(height: 8),
                         Text(
                           'Connected to: ${_connectedDevice!.name}',
-                          style: const TextStyle(fontSize: 12, color: Colors.grey),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                          ),
                         ),
                         Text(
                           'Type: ${_connectedDevice!.type.name.toUpperCase()}',
-                          style: const TextStyle(fontSize: 12, color: Colors.grey),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                          ),
                         ),
                         const SizedBox(height: 8),
                         ElevatedButton.icon(
@@ -263,7 +277,10 @@ class _MainScreenState extends State<MainScreen> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.red,
                             foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
                             textStyle: const TextStyle(fontSize: 12),
                           ),
                         ),
@@ -285,20 +302,28 @@ class _MainScreenState extends State<MainScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: const [
-                      Text('Order #12345', style: TextStyle(fontWeight: FontWeight.bold)),
+                      Text(
+                        'Order #12345',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
                       SizedBox(height: 8),
                       Text('1x Pad Thai - ฿150'),
                       Text('2x Green Curry - ฿240'),
                       Text('1x Mango Sticky Rice - ฿80'),
                       Divider(),
-                      Text('Total: ฿470', style: TextStyle(fontWeight: FontWeight.bold)),
+                      Text(
+                        'Total: ฿470',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
                     ],
                   ),
                 ),
               ),
               const SizedBox(height: 24),
               ElevatedButton.icon(
-                onPressed: _bluetoothAvailable ? _checkConnectionAndNavigate : null,
+                onPressed: _bluetoothAvailable
+                    ? _checkConnectionAndNavigate
+                    : null,
                 icon: const Icon(Icons.print),
                 label: const Text('Print Receipt'),
                 style: ElevatedButton.styleFrom(
@@ -403,34 +428,36 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
       _discoveredDevices.clear();
       _sortedDevices.clear();
     });
-    
+
     try {
       await _printer.startScan();
-      
+
       // Auto-stop scan after 5 seconds and sort the final list
       _scanTimer = Timer(const Duration(seconds: 5), () {
         _stopScanAndSort();
       });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to start scan: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to start scan: $e')));
       }
     }
   }
 
   Future<void> _stopScanAndSort() async {
     await _printer.stopScan();
-    
+
     // Sort devices by signal strength (strongest first) once and keep it stable
-    final sortedDevices = List<printer.BluetoothDevice>.from(_discoveredDevices);
+    final sortedDevices = List<printer.BluetoothDevice>.from(
+      _discoveredDevices,
+    );
     sortedDevices.sort((a, b) {
       final aRssi = a.rssi ?? -100;
       final bRssi = b.rssi ?? -100;
       return bRssi.compareTo(aRssi); // Descending order (strongest first)
     });
-    
+
     setState(() {
       _isScanning = false;
       _sortedDevices = sortedDevices;
@@ -447,34 +474,32 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const Center(
-          child: CircularProgressIndicator(),
-        ),
+        builder: (context) => const Center(child: CircularProgressIndicator()),
       );
 
       final success = await _printer.connect(device.id);
-      
+
       if (!mounted) return;
       Navigator.pop(context); // Close loading dialog
-      
+
       if (success) {
         Navigator.pop(context); // Go back to main screen
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Connected to ${device.name}')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Connected to ${device.name}')));
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to connect')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Failed to connect')));
         }
       }
     } catch (e) {
       if (!mounted) return;
       Navigator.pop(context); // Close loading dialog
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Connection error: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Connection error: $e')));
     }
   }
 
@@ -528,19 +553,19 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
                     ),
                   )
                 : _sortedDevices.isEmpty
-                    ? const Center(
-                        child: Text(
-                          'No devices found.\nTap refresh to scan again.',
-                          textAlign: TextAlign.center,
-                        ),
-                      )
-                    : ListView.builder(
-                        itemCount: _sortedDevices.length,
-                        itemBuilder: (context, index) {
-                          final device = _sortedDevices[index];
-                          return _buildDeviceListItem(device, false);
-                        },
-                      ),
+                ? const Center(
+                    child: Text(
+                      'No devices found.\nTap refresh to scan again.',
+                      textAlign: TextAlign.center,
+                    ),
+                  )
+                : ListView.builder(
+                    itemCount: _sortedDevices.length,
+                    itemBuilder: (context, index) {
+                      final device = _sortedDevices[index];
+                      return _buildDeviceListItem(device, false);
+                    },
+                  ),
           ),
         ],
       ),
@@ -552,7 +577,8 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
     String displayName = device.name;
     if (displayName == 'Unknown Device' || displayName.isEmpty) {
       if (device.address.isNotEmpty) {
-        displayName = 'Device ${device.address.substring(device.address.length - 5)}';
+        displayName =
+            'Device ${device.address.substring(device.address.length - 5)}';
       } else {
         displayName = 'Unknown Device';
       }
@@ -578,8 +604,8 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: ListTile(
         leading: Icon(
-          device.type == printer.BluetoothDeviceType.ble 
-              ? Icons.bluetooth 
+          device.type == printer.BluetoothDeviceType.ble
+              ? Icons.bluetooth
               : Icons.bluetooth_connected,
           color: Colors.blue,
           size: 32,
@@ -598,9 +624,12 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
-                    color: device.type == printer.BluetoothDeviceType.ble 
+                    color: device.type == printer.BluetoothDeviceType.ble
                         ? Colors.purple.withValues(alpha: 0.1)
                         : Colors.blue.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
@@ -609,8 +638,8 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
                     device.type.name.toUpperCase(),
                     style: TextStyle(
                       fontSize: 10,
-                      color: device.type == printer.BluetoothDeviceType.ble 
-                          ? Colors.purple 
+                      color: device.type == printer.BluetoothDeviceType.ble
+                          ? Colors.purple
                           : Colors.blue,
                       fontWeight: FontWeight.bold,
                     ),
@@ -631,25 +660,22 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
               const SizedBox(height: 2),
               Row(
                 children: [
-                  Icon(
-                    Icons.signal_cellular_alt,
-                    size: 14,
-                    color: signalColor,
-                  ),
+                  Icon(Icons.signal_cellular_alt, size: 14, color: signalColor),
                   const SizedBox(width: 4),
                   Text(
                     '$signalStrength (${device.rssi} dBm)',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: signalColor,
-                    ),
+                    style: TextStyle(fontSize: 12, color: signalColor),
                   ),
                 ],
               ),
             ],
           ],
         ),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+        trailing: const Icon(
+          Icons.arrow_forward_ios,
+          size: 16,
+          color: Colors.grey,
+        ),
         onTap: () => _connectToDevice(device),
       ),
     );
@@ -715,7 +741,9 @@ class _PrintPreviewScreenState extends State<PrintPreviewScreen> {
       );
 
       // Capture the widget as image
-      final boundary = _repaintBoundaryKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      final boundary =
+          _repaintBoundaryKey.currentContext?.findRenderObject()
+              as RenderRepaintBoundary?;
       if (boundary != null) {
         final image = await boundary.toImage(pixelRatio: 2.0);
         final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
@@ -741,7 +769,7 @@ class _PrintPreviewScreenState extends State<PrintPreviewScreen> {
             // Add some paper feed and cut
             await _printer.feedPaper(3);
             await _printer.cutPaper();
-            
+
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Receipt printed successfully!')),
@@ -758,18 +786,16 @@ class _PrintPreviewScreenState extends State<PrintPreviewScreen> {
     } catch (e) {
       if (!mounted) return;
       Navigator.pop(context); // Close loading dialog
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Print error: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Print error: $e')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Print Preview'),
-      ),
+      appBar: AppBar(title: const Text('Print Preview')),
       body: Column(
         children: [
           Container(
@@ -778,10 +804,7 @@ class _PrintPreviewScreenState extends State<PrintPreviewScreen> {
             color: Colors.grey[100],
             child: Row(
               children: [
-                Icon(
-                  _getPrinterStatusIcon(),
-                  color: _getPrinterStatusColor(),
-                ),
+                Icon(_getPrinterStatusIcon(), color: _getPrinterStatusColor()),
                 const SizedBox(width: 8),
                 Text('Printer: ${_getPrinterStatusText()}'),
               ],
@@ -802,21 +825,49 @@ class _PrintPreviewScreenState extends State<PrintPreviewScreen> {
                         border: Border.all(color: Colors.grey[300]!),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                    child: ComplexReceiptWidget(
-                      foodList: [
-                        FoodItem(tmpSubject: 'ข้าวผัดกุ้ง', quantity: 2, tmpPrice: 120.0),
-                        FoodItem(tmpSubject: 'ต้มยำกุ้ง', quantity: 1, tmpPrice: 180.0),
-                        FoodItem(tmpSubject: 'ผัดไทย', quantity: 1, tmpPrice: 80.0, status: 'ยกเลิก'),
-                        FoodItem(tmpSubject: 'ส้มตำ', quantity: 1, tmpPrice: 60.0),
-                        FoodItem(tmpSubject: 'แกงเขียวหวาน', quantity: 1, tmpPrice: 150.0),
-                        FoodItem(tmpSubject: 'ข้าวเปล่า', quantity: 3, tmpPrice: 30.0),
-                      ],
-                      orderStatus: 'เสร็จสิ้น',
-                      userName: 'ร้านอาหารทดสอบ',
-                      topImageUrl: 'https://firebasestorage.googleapis.com/v0/b/food-menu-harl5o.firebasestorage.app/o/users%2FgPFgbp7F8IfPBCnUt7vjybyhtp72%2Fuploads%2F1752934236783334.png?alt=media&token=79570d98-7d8f-4931-b157-a71d6df1f305',
-                      bottomImageUrl: 'https://firebasestorage.googleapis.com/v0/b/food-menu-harl5o.firebasestorage.app/o/users%2FPXR7FTHYlJSAqCIkJlyMyeFGp513%2Fuploads%2F1742308148653468.jpg?alt=media&token=f4f6f631-09e8-4aab-ab38-38d3a5b77617',
-                      bottomText: 'สแกน QR Code เพื่อชำระเงิน\nขอบคุณที่ใช้บริการ\nโทร 02-123-4567',
-                    ),
+                      child: ComplexReceiptWidget(
+                        foodList: [
+                          FoodItem(
+                            tmpSubject: 'ข้าวผัดกุ้ง',
+                            quantity: 2,
+                            tmpPrice: 120.0,
+                          ),
+                          FoodItem(
+                            tmpSubject: 'ต้มยำกุ้ง',
+                            quantity: 1,
+                            tmpPrice: 180.0,
+                          ),
+                          FoodItem(
+                            tmpSubject: 'ผัดไทย',
+                            quantity: 1,
+                            tmpPrice: 80.0,
+                            status: 'ยกเลิก',
+                          ),
+                          FoodItem(
+                            tmpSubject: 'ส้มตำ',
+                            quantity: 1,
+                            tmpPrice: 60.0,
+                          ),
+                          FoodItem(
+                            tmpSubject: 'แกงเขียวหวาน',
+                            quantity: 1,
+                            tmpPrice: 150.0,
+                          ),
+                          FoodItem(
+                            tmpSubject: 'ข้าวเปล่า',
+                            quantity: 3,
+                            tmpPrice: 30.0,
+                          ),
+                        ],
+                        orderStatus: 'เสร็จสิ้น',
+                        userName: 'ร้านอาหารทดสอบ',
+                        topImageUrl:
+                            'https://firebasestorage.googleapis.com/v0/b/food-menu-harl5o.firebasestorage.app/o/users%2FgPFgbp7F8IfPBCnUt7vjybyhtp72%2Fuploads%2F1752934236783334.png?alt=media&token=79570d98-7d8f-4931-b157-a71d6df1f305',
+                        bottomImageUrl:
+                            'https://firebasestorage.googleapis.com/v0/b/food-menu-harl5o.firebasestorage.app/o/users%2FPXR7FTHYlJSAqCIkJlyMyeFGp513%2Fuploads%2F1742308148653468.jpg?alt=media&token=f4f6f631-09e8-4aab-ab38-38d3a5b77617',
+                        bottomText:
+                            'สแกน QR Code เพื่อชำระเงิน\nขอบคุณที่ใช้บริการ\nโทร 02-123-4567',
+                      ),
                     ),
                   ),
                 ),
@@ -828,7 +879,9 @@ class _PrintPreviewScreenState extends State<PrintPreviewScreen> {
             child: SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: _printerStatus == printer.PrinterStatus.ready ? _printReceipt : null,
+                onPressed: _printerStatus == printer.PrinterStatus.ready
+                    ? _printReceipt
+                    : null,
                 icon: const Icon(Icons.print),
                 label: const Text('Print Receipt'),
                 style: ElevatedButton.styleFrom(
@@ -894,10 +947,7 @@ class ReceiptWidget extends StatelessWidget {
         const Center(
           child: Text(
             'THAI KITCHEN',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
         ),
         const Center(
@@ -907,19 +957,13 @@ class ReceiptWidget extends StatelessWidget {
           ),
         ),
         const Center(
-          child: Text(
-            'Tel: 02-123-4567',
-            style: TextStyle(fontSize: 12),
-          ),
+          child: Text('Tel: 02-123-4567', style: TextStyle(fontSize: 12)),
         ),
         const SizedBox(height: 16),
         const Divider(),
         const Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text('Order #12345'),
-            Text('2024-01-15 14:30'),
-          ],
+          children: [Text('Order #12345'), Text('2024-01-15 14:30')],
         ),
         const Divider(),
         const SizedBox(height: 8),
@@ -930,17 +974,11 @@ class ReceiptWidget extends StatelessWidget {
         const Divider(),
         const Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text('Subtotal:'),
-            Text('฿470.00'),
-          ],
+          children: [Text('Subtotal:'), Text('฿470.00')],
         ),
         const Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text('VAT (7%):'),
-            Text('฿32.90'),
-          ],
+          children: [Text('VAT (7%):'), Text('฿32.90')],
         ),
         const Divider(),
         const Row(
@@ -964,10 +1002,7 @@ class ReceiptWidget extends StatelessWidget {
           ),
         ),
         const Center(
-          child: Text(
-            'Please come again',
-            style: TextStyle(fontSize: 12),
-          ),
+          child: Text('Please come again', style: TextStyle(fontSize: 12)),
         ),
       ],
     );

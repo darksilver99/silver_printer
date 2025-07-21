@@ -6,7 +6,7 @@ class FoodItem {
   final int quantity;
   final double tmpPrice;
   final String status;
-  
+
   FoodItem({
     required this.tmpSubject,
     required this.quantity,
@@ -22,7 +22,7 @@ class ComplexReceiptWidget extends StatelessWidget {
   final String? topImageUrl;
   final String? bottomImageUrl;
   final String? bottomText;
-  
+
   const ComplexReceiptWidget({
     super.key,
     required this.foodList,
@@ -55,7 +55,7 @@ class ComplexReceiptWidget extends StatelessWidget {
                   fit: BoxFit.contain,
                 ),
               ),
-            
+
             // Restaurant Name
             Padding(
               padding: const EdgeInsets.only(bottom: 8.0),
@@ -77,7 +77,7 @@ class ComplexReceiptWidget extends StatelessWidget {
                 ],
               ),
             ),
-            
+
             // Order Title
             Padding(
               padding: const EdgeInsets.only(bottom: 8.0),
@@ -96,7 +96,7 @@ class ComplexReceiptWidget extends StatelessWidget {
                 ],
               ),
             ),
-            
+
             // Food List
             Padding(
               padding: const EdgeInsets.only(bottom: 16.0),
@@ -139,7 +139,7 @@ class ComplexReceiptWidget extends StatelessWidget {
                 },
               ),
             ),
-            
+
             // Total Price
             Row(
               mainAxisSize: MainAxisSize.max,
@@ -160,7 +160,7 @@ class ComplexReceiptWidget extends StatelessWidget {
                 ),
               ],
             ),
-            
+
             // Date
             Padding(
               padding: const EdgeInsets.only(bottom: 8.0),
@@ -184,7 +184,7 @@ class ComplexReceiptWidget extends StatelessWidget {
                 ],
               ),
             ),
-            
+
             // QR Code Section
             if (bottomImageUrl != null && bottomImageUrl!.isNotEmpty)
               Padding(
@@ -226,7 +226,7 @@ class ComplexReceiptWidget extends StatelessWidget {
                   ],
                 ),
               ),
-            
+
             // Bottom Text
             if (bottomText != null && bottomText!.isNotEmpty)
               Padding(
@@ -256,13 +256,16 @@ class ComplexReceiptWidget extends StatelessWidget {
       ),
     );
   }
-  
+
   double _getTotalPrice() {
     if (orderStatus == 'เสร็จสิ้น' || orderStatus == 'ยกเลิก') {
       return foodList
           .where((item) => item.status != 'ยกเลิก')
           .fold(0.0, (sum, item) => sum + (item.tmpPrice * item.quantity));
     }
-    return foodList.fold(0.0, (sum, item) => sum + (item.tmpPrice * item.quantity));
+    return foodList.fold(
+      0.0,
+      (sum, item) => sum + (item.tmpPrice * item.quantity),
+    );
   }
 }

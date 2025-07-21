@@ -8,7 +8,6 @@ import 'dart:typed_data';
 class MockSilverPrinterPlatform
     with MockPlatformInterfaceMixin
     implements SilverPrinterPlatform {
-
   @override
   Future<String?> getPlatformVersion() => Future.value('42');
 
@@ -37,7 +36,8 @@ class MockSilverPrinterPlatform
   Future<bool> disconnect() => Future.value(true);
 
   @override
-  Future<ConnectionState> getConnectionState() => Future.value(ConnectionState.disconnected);
+  Future<ConnectionState> getConnectionState() =>
+      Future.value(ConnectionState.disconnected);
 
   @override
   Future<BluetoothDevice?> getConnectedDevice() => Future.value(null);
@@ -46,13 +46,20 @@ class MockSilverPrinterPlatform
   Future<bool> isConnected() => Future.value(false);
 
   @override
-  Future<PrinterStatus> getPrinterStatus() => Future.value(PrinterStatus.offline);
+  Future<PrinterStatus> getPrinterStatus() =>
+      Future.value(PrinterStatus.offline);
 
   @override
-  Future<bool> printText(String text, {Map<String, dynamic>? settings}) => Future.value(true);
+  Future<bool> printText(String text, {Map<String, dynamic>? settings}) =>
+      Future.value(true);
 
   @override
-  Future<bool> printImage(Uint8List imageData, {int? width, int? height, Map<String, dynamic>? settings}) => Future.value(true);
+  Future<bool> printImage(
+    Uint8List imageData, {
+    int? width,
+    int? height,
+    Map<String, dynamic>? settings,
+  }) => Future.value(true);
 
   @override
   Future<bool> printJob(PrintJob job) => Future.value(true);
@@ -65,6 +72,12 @@ class MockSilverPrinterPlatform
 
   @override
   Future<bool> sendRawData(Uint8List data) => Future.value(true);
+
+  @override
+  Future<bool> printHybrid(
+    List<PrintItem> items, {
+    Map<String, dynamic>? settings,
+  }) => Future.value(true);
 
   @override
   Stream<BluetoothDevice> get deviceDiscoveryStream => Stream.empty();

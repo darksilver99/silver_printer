@@ -183,6 +183,15 @@ public class SilverPrinterPlugin: NSObject, FlutterPlugin {
             }
             sendRawData(data: data.data, result: result)
             
+        case "printHybrid":
+            guard let args = call.arguments as? [String: Any],
+                  let items = args["items"] as? [[String: Any]] else {
+                result(FlutterError(code: "INVALID_ARGUMENT", message: "Items are required", details: nil))
+                return
+            }
+            let settings = args["settings"] as? [String: Any]
+            printHybrid(items: items, settings: settings, result: result)
+            
         default:
             result(FlutterMethodNotImplemented)
         }
@@ -522,6 +531,116 @@ public class SilverPrinterPlugin: NSObject, FlutterPlugin {
         }
         
         sendDataToPrinter(data: data, result: result)
+    }
+    
+    private func printHybrid(items: [[String: Any]], settings: [String: Any]?, result: @escaping FlutterResult) {
+        guard connectionState == "connected" else {
+            result(FlutterError(code: "NOT_CONNECTED", message: "No device connected", details: nil))
+            return
+        }
+        
+        updatePrinterStatus("busy")
+        
+        var escPosData = Data()
+        escPosData.append(Data([0x1B, 0x40])) // Initialize printer
+        
+        for item in items {
+            guard let type = item["type"] as? String else { continue }
+            
+            switch type {
+            case "text":
+                let content = item["content"] as? String ?? ""
+                let alignment = item["alignment"] as? String ?? "left"
+                let size = item["size"] as? String ?? "normal"
+                let bold = item["bold"] as? Bool ?? false
+                let underline = item["underline"] as? Bool ?? false
+                
+                // Add text formatting commands
+                switch alignment {
+                case "center":
+                    escPosData.append(Data([0x1B, 0x61, 0x01]))
+                case "right":
+                    escPosData.append(Data([0x1B, 0x61, 0x02]))
+                default: // left
+                    escPosData.append(Data([0x1B, 0x61, 0x00]))
+                }
+                
+                // Text size
+                switch size {
+                case "small":
+                    escPosData.append(Data([0x1D, 0x21, 0x00]))
+                case "large":
+                    escPosData.append(Data([0x1D, 0x21, 0x11]))
+                case "extraLarge":
+                    escPosData.append(Data([0x1D, 0x21, 0x22]))
+                default: // normal
+                    escPosData.append(Data([0x1D, 0x21, 0x00]))
+                }
+                
+                // Bold
+                if bold {
+                    escPosData.append(Data([0x1B, 0x45, 0x01]))
+                }
+                
+                // Underline
+                if underline {
+                    escPosData.append(Data([0x1B, 0x2D, 0x01]))
+                }
+                
+                // Add text content
+                if let textData = content.data(using: .utf8) {
+                    escPosData.append(textData)
+                }
+                escPosData.append(Data([0x0A])) // Line feed
+                
+                // Reset formatting
+                escPosData.append(Data([0x1B, 0x45, 0x00])) // Bold off
+                escPosData.append(Data([0x1B, 0x2D, 0x00])) // Underline off
+                escPosData.append(Data([0x1D, 0x21, 0x00])) // Normal size
+                escPosData.append(Data([0x1B, 0x61, 0x00])) // Left align
+                
+            case "image":
+                if let imageData = item["imageData"] as? FlutterStandardTypedData {
+                    let width = item["width"] as? Int
+                    let height = item["height"] as? Int
+                    let alignment = item["alignment"] as? String ?? "center"
+                    
+                    if let image = UIImage(data: imageData.data) {
+                        let imageEscPos = convertImageToEscPos(image: image, targetWidth: width, targetHeight: height, settings: nil)
+                        escPosData.append(imageEscPos)
+                    }
+                }
+                
+            case "lineFeed":
+                let lines = item["lines"] as? Int ?? 1
+                for _ in 0..<lines {
+                    escPosData.append(Data([0x0A]))
+                }
+                
+            case "divider":
+                let character = item["character"] as? String ?? "-"
+                let width = item["width"] as? Int ?? 32
+                let dividerText = String(repeating: character, count: width)
+                escPosData.append(Data([0x1B, 0x61, 0x01])) // Center
+                if let dividerData = dividerText.data(using: .utf8) {
+                    escPosData.append(dividerData)
+                }
+                escPosData.append(Data([0x0A])) // Line feed
+                escPosData.append(Data([0x1B, 0x61, 0x00])) // Left align
+                
+            default:
+                break
+            }
+        }
+        
+        // Add final feed lines from settings if specified
+        if let settings = settings, let feedLines = settings["feedLines"] as? Int, feedLines > 0 {
+            for _ in 0..<feedLines {
+                escPosData.append(Data([0x0A])) // Line feed
+            }
+        }
+        
+        sendDataToPrinter(data: escPosData, result: result)
     }
     
     private func sendDataToPrinter(data: Data, result: @escaping FlutterResult) {

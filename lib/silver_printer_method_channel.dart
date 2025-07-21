@@ -12,13 +12,19 @@ class MethodChannelSilverPrinter extends SilverPrinterPlatform {
   final methodChannel = const MethodChannel('silver_printer');
 
   /// Event channel for device discovery
-  static const EventChannel _deviceDiscoveryChannel = EventChannel('silver_printer/device_discovery');
-  
+  static const EventChannel _deviceDiscoveryChannel = EventChannel(
+    'silver_printer/device_discovery',
+  );
+
   /// Event channel for connection state
-  static const EventChannel _connectionStateChannel = EventChannel('silver_printer/connection_state');
-  
+  static const EventChannel _connectionStateChannel = EventChannel(
+    'silver_printer/connection_state',
+  );
+
   /// Event channel for printer status
-  static const EventChannel _printerStatusChannel = EventChannel('silver_printer/printer_status');
+  static const EventChannel _printerStatusChannel = EventChannel(
+    'silver_printer/printer_status',
+  );
 
   Stream<BluetoothDevice>? _deviceDiscoveryStream;
   Stream<ConnectionState>? _connectionStateStream;
@@ -26,19 +32,25 @@ class MethodChannelSilverPrinter extends SilverPrinterPlatform {
 
   @override
   Future<String?> getPlatformVersion() async {
-    final version = await methodChannel.invokeMethod<String>('getPlatformVersion');
+    final version = await methodChannel.invokeMethod<String>(
+      'getPlatformVersion',
+    );
     return version;
   }
 
   @override
   Future<bool> isBluetoothAvailable() async {
-    final result = await methodChannel.invokeMethod<bool>('isBluetoothAvailable');
+    final result = await methodChannel.invokeMethod<bool>(
+      'isBluetoothAvailable',
+    );
     return result ?? false;
   }
 
   @override
   Future<bool> requestBluetoothPermissions() async {
-    final result = await methodChannel.invokeMethod<bool>('requestBluetoothPermissions');
+    final result = await methodChannel.invokeMethod<bool>(
+      'requestBluetoothPermissions',
+    );
     return result ?? false;
   }
 
@@ -54,23 +66,37 @@ class MethodChannelSilverPrinter extends SilverPrinterPlatform {
 
   @override
   Future<List<BluetoothDevice>> getDiscoveredDevices() async {
-    final result = await methodChannel.invokeMethod<List>('getDiscoveredDevices');
+    final result = await methodChannel.invokeMethod<List>(
+      'getDiscoveredDevices',
+    );
     if (result == null) return [];
-    
-    return result.map((deviceMap) => BluetoothDevice.fromMap(Map<String, dynamic>.from(deviceMap))).toList();
+
+    return result
+        .map(
+          (deviceMap) =>
+              BluetoothDevice.fromMap(Map<String, dynamic>.from(deviceMap)),
+        )
+        .toList();
   }
 
   @override
   Future<List<BluetoothDevice>> getPairedDevices() async {
     final result = await methodChannel.invokeMethod<List>('getPairedDevices');
     if (result == null) return [];
-    
-    return result.map((deviceMap) => BluetoothDevice.fromMap(Map<String, dynamic>.from(deviceMap))).toList();
+
+    return result
+        .map(
+          (deviceMap) =>
+              BluetoothDevice.fromMap(Map<String, dynamic>.from(deviceMap)),
+        )
+        .toList();
   }
 
   @override
   Future<bool> connect(String deviceId) async {
-    final result = await methodChannel.invokeMethod<bool>('connect', {'deviceId': deviceId});
+    final result = await methodChannel.invokeMethod<bool>('connect', {
+      'deviceId': deviceId,
+    });
     return result ?? false;
   }
 
@@ -82,7 +108,9 @@ class MethodChannelSilverPrinter extends SilverPrinterPlatform {
 
   @override
   Future<ConnectionState> getConnectionState() async {
-    final result = await methodChannel.invokeMethod<String>('getConnectionState');
+    final result = await methodChannel.invokeMethod<String>(
+      'getConnectionState',
+    );
     switch (result) {
       case 'connected':
         return ConnectionState.connected;
@@ -99,7 +127,7 @@ class MethodChannelSilverPrinter extends SilverPrinterPlatform {
   Future<BluetoothDevice?> getConnectedDevice() async {
     final result = await methodChannel.invokeMethod<Map>('getConnectedDevice');
     if (result == null) return null;
-    
+
     return BluetoothDevice.fromMap(Map<String, dynamic>.from(result));
   }
 
@@ -134,7 +162,12 @@ class MethodChannelSilverPrinter extends SilverPrinterPlatform {
   }
 
   @override
-  Future<bool> printImage(Uint8List imageData, {int? width, int? height, Map<String, dynamic>? settings}) async {
+  Future<bool> printImage(
+    Uint8List imageData, {
+    int? width,
+    int? height,
+    Map<String, dynamic>? settings,
+  }) async {
     final result = await methodChannel.invokeMethod<bool>('printImage', {
       'imageData': imageData,
       'width': width,
@@ -146,13 +179,18 @@ class MethodChannelSilverPrinter extends SilverPrinterPlatform {
 
   @override
   Future<bool> printJob(PrintJob job) async {
-    final result = await methodChannel.invokeMethod<bool>('printJob', job.toMap());
+    final result = await methodChannel.invokeMethod<bool>(
+      'printJob',
+      job.toMap(),
+    );
     return result ?? false;
   }
 
   @override
   Future<bool> feedPaper(int lines) async {
-    final result = await methodChannel.invokeMethod<bool>('feedPaper', {'lines': lines});
+    final result = await methodChannel.invokeMethod<bool>('feedPaper', {
+      'lines': lines,
+    });
     return result ?? false;
   }
 
@@ -164,12 +202,17 @@ class MethodChannelSilverPrinter extends SilverPrinterPlatform {
 
   @override
   Future<bool> sendRawData(Uint8List data) async {
-    final result = await methodChannel.invokeMethod<bool>('sendRawData', {'data': data});
+    final result = await methodChannel.invokeMethod<bool>('sendRawData', {
+      'data': data,
+    });
     return result ?? false;
   }
 
   @override
-  Future<bool> printHybrid(List<PrintItem> items, {Map<String, dynamic>? settings}) async {
+  Future<bool> printHybrid(
+    List<PrintItem> items, {
+    Map<String, dynamic>? settings,
+  }) async {
     final serializedItems = items.map((item) => item.toMap()).toList();
     final result = await methodChannel.invokeMethod<bool>('printHybrid', {
       'items': serializedItems,
@@ -182,7 +225,9 @@ class MethodChannelSilverPrinter extends SilverPrinterPlatform {
   Stream<BluetoothDevice> get deviceDiscoveryStream {
     _deviceDiscoveryStream ??= _deviceDiscoveryChannel
         .receiveBroadcastStream()
-        .map((event) => BluetoothDevice.fromMap(Map<String, dynamic>.from(event)));
+        .map(
+          (event) => BluetoothDevice.fromMap(Map<String, dynamic>.from(event)),
+        );
     return _deviceDiscoveryStream!;
   }
 
@@ -207,20 +252,20 @@ class MethodChannelSilverPrinter extends SilverPrinterPlatform {
 
   @override
   Stream<PrinterStatus> get printerStatusStream {
-    _printerStatusStream ??= _printerStatusChannel
-        .receiveBroadcastStream()
-        .map((event) {
-          switch (event.toString()) {
-            case 'ready':
-              return PrinterStatus.ready;
-            case 'busy':
-              return PrinterStatus.busy;
-            case 'error':
-              return PrinterStatus.error;
-            default:
-              return PrinterStatus.offline;
-          }
-        });
+    _printerStatusStream ??= _printerStatusChannel.receiveBroadcastStream().map(
+      (event) {
+        switch (event.toString()) {
+          case 'ready':
+            return PrinterStatus.ready;
+          case 'busy':
+            return PrinterStatus.busy;
+          case 'error':
+            return PrinterStatus.error;
+          default:
+            return PrinterStatus.offline;
+        }
+      },
+    );
     return _printerStatusStream!;
   }
 }
