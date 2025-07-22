@@ -455,7 +455,9 @@ public class SilverPrinterPlugin: NSObject, FlutterPlugin {
         updatePrinterStatus("busy")
         
         var escPos = Data()
-        escPos.append(Data([0x1B, 0x40])) // Initialize
+        escPos.append(Data([0x1B, 0x40])) // Initialize printer
+        escPos.append(Data([0x1B, 0x21, 0x00])) // Reset font to normal
+        escPos.append(Data([0x1B, 0x61, 0x00])) // Left alignment
         escPos.append(text.data(using: .utf8) ?? Data())
         escPos.append(Data([0x0A, 0x0A, 0x0A])) // Line feeds
         
@@ -543,6 +545,7 @@ public class SilverPrinterPlugin: NSObject, FlutterPlugin {
         
         var escPosData = Data()
         escPosData.append(Data([0x1B, 0x40])) // Initialize printer
+        escPosData.append(Data([0x1B, 0x21, 0x00])) // Reset font to normal
         
         for item in items {
             guard let type = item["type"] as? String else { continue }

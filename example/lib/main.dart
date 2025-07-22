@@ -723,6 +723,133 @@ class _PrintPreviewScreenState extends State<PrintPreviewScreen> {
     });
   }
 
+  Future<void> _testPrintText() async {
+    try {
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('Testing printText...'),
+            ],
+          ),
+        ),
+      );
+
+      // Test printText with English first
+      final success1 = await _printer.printText('=== Test printText ===\n');
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      final success2 = await _printer.printText('Line 1 - English\n');
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      final success3 = await _printer.printText('Line 2 - Testing\n');
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      final success4 = await _printer.printText('บรรทัดที่ 3 - ไทย\n');
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      final success5 = await _printer.printText('บรรทัดที่ 4 - ทดสอบ\n\n\n');
+
+      if (!mounted) return;
+      Navigator.pop(context); // Close loading dialog
+
+      final allSuccess = success1 && success2 && success3 && success4 && success5;
+      
+      if (allSuccess) {
+        // Add some paper feed
+        await _printer.feedPaper(3);
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('printText test completed successfully!')),
+          );
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('printText test failed')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context); // Close loading dialog
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('printText error: $e')));
+    }
+  }
+
+  Future<void> _testPrintHybrid() async {
+    try {
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('Testing printHybrid...'),
+            ],
+          ),
+        ),
+      );
+
+      // Test printHybrid with various items
+      final testItems = [
+        printer.PrintItem.text('=== Test printHybrid ===',
+            alignment: printer.TextAlignment.center,
+            bold: true,
+            size: printer.TextSize.large
+        ),
+        printer.PrintItem.lineFeed(1),
+        printer.PrintItem.text('Left aligned text', alignment: printer.TextAlignment.left),
+        printer.PrintItem.text('Center aligned text', alignment: printer.TextAlignment.center),
+        printer.PrintItem.text('Right aligned text', alignment: printer.TextAlignment.right),
+        printer.PrintItem.lineFeed(2),
+        printer.PrintItem.divider(character: '-', width: 32),
+        printer.PrintItem.lineFeed(1),
+        printer.PrintItem.text('Normal text'),
+        printer.PrintItem.text('Bold text', bold: true),
+        printer.PrintItem.text('Underlined text', underline: true),
+        printer.PrintItem.text('Large text', size: printer.TextSize.large),
+        printer.PrintItem.lineFeed(1),
+        printer.PrintItem.text('Thai text: ทดสอบภาษาไทย'),
+        printer.PrintItem.lineFeed(3),
+      ];
+      
+      final success = await _printer.printHybrid(testItems, settings: {
+        'feedLines': 3,
+      });
+
+      if (!mounted) return;
+      Navigator.pop(context); // Close loading dialog
+      
+      if (success) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('printHybrid test completed successfully!')),
+          );
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('printHybrid test failed')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context); // Close loading dialog
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('printHybrid error: $e')));
+    }
+  }
+
   Future<void> _printReceipt() async {
     try {
       // Show loading dialog
@@ -754,7 +881,7 @@ class _PrintPreviewScreenState extends State<PrintPreviewScreen> {
             imageBytes,
             // ไม่ระบุ width = ใช้ default 384 (58mm paper)
             // หรือใช้ width: 576 สำหรับกระดาษ 80mm
-            width: 576,
+            width: 384,
             settings: {
               'density': 'medium',
               'alignment': 'center',
@@ -876,18 +1003,57 @@ class _PrintPreviewScreenState extends State<PrintPreviewScreen> {
           ),
           Padding(
             padding: const EdgeInsets.all(16),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _printerStatus == printer.PrinterStatus.ready
-                    ? _printReceipt
-                    : null,
-                icon: const Icon(Icons.print),
-                label: const Text('Print Receipt'),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Column(
+              children: [
+                // Test printText Button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _printerStatus == printer.PrinterStatus.ready
+                        ? _testPrintText
+                        : null,
+                    icon: const Icon(Icons.text_fields),
+                    label: const Text('Test printText'),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
                 ),
-              ),
+                const SizedBox(height: 12),
+                // Test printHybrid Button  
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _printerStatus == printer.PrinterStatus.ready
+                        ? _testPrintHybrid
+                        : null,
+                    icon: const Icon(Icons.layers),
+                    label: const Text('Test printHybrid'),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      backgroundColor: Colors.purple,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // Original Print Receipt Button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _printerStatus == printer.PrinterStatus.ready
+                        ? _printReceipt
+                        : null,
+                    icon: const Icon(Icons.print),
+                    label: const Text('Print Receipt'),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
