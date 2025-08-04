@@ -585,12 +585,47 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
     try {
       updatePrinterStatus("busy")
       
-      val escPos = StringBuilder()
-      escPos.append("\u001B@") // Initialize
-      escPos.append(text)
-      escPos.append("\n\n\n")
+      val escPosCommands = mutableListOf<Byte>()
       
-      sendDataToPrinter(escPos.toString().toByteArray(), result)
+      // Initialize printer
+      escPosCommands.addAll(listOf(0x1B.toByte(), 0x40.toByte())) // ESC @
+      
+      // Process settings
+      settings?.let { s ->
+        // Font size and bold
+        val fontSize = s["fontSize"] as? String ?: "normal"
+        val bold = s["bold"] as? Boolean ?: false
+        
+        var fontCommand = 0x00
+        when (fontSize) {
+          "large" -> fontCommand = fontCommand or 0x20 // Double height
+          "extraLarge" -> fontCommand = fontCommand or 0x30 // Double width + height
+        }
+        if (bold) {
+          fontCommand = fontCommand or 0x08 // Bold
+        }
+        
+        if (fontCommand != 0x00) {
+          escPosCommands.addAll(listOf(0x1B.toByte(), 0x21.toByte(), fontCommand.toByte())) // ESC !
+        }
+        
+        // Alignment
+        val alignment = s["alignment"] as? String ?: "left"
+        when (alignment) {
+          "center" -> escPosCommands.addAll(listOf(0x1B.toByte(), 0x61.toByte(), 0x01.toByte())) // ESC a 1
+          "right" -> escPosCommands.addAll(listOf(0x1B.toByte(), 0x61.toByte(), 0x02.toByte())) // ESC a 2
+          else -> escPosCommands.addAll(listOf(0x1B.toByte(), 0x61.toByte(), 0x00.toByte())) // ESC a 0 (left)
+        }
+      }
+      
+      // Add text
+      escPosCommands.addAll(text.toByteArray().toList())
+      
+      // Reset alignment and font after text (optional)
+      escPosCommands.addAll(listOf(0x1B.toByte(), 0x21.toByte(), 0x00.toByte())) // Reset font
+      escPosCommands.addAll(listOf(0x1B.toByte(), 0x61.toByte(), 0x00.toByte())) // Reset alignment to left
+      
+      sendDataToPrinter(escPosCommands.toByteArray(), result)
     } catch (e: Exception) {
       Log.e(TAG, "Print text failed", e)
       updatePrinterStatus("error")

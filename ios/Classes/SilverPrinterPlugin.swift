@@ -456,10 +456,52 @@ public class SilverPrinterPlugin: NSObject, FlutterPlugin {
         
         var escPos = Data()
         escPos.append(Data([0x1B, 0x40])) // Initialize printer
-        escPos.append(Data([0x1B, 0x21, 0x00])) // Reset font to normal
-        escPos.append(Data([0x1B, 0x61, 0x00])) // Left alignment
+        
+        // Process settings
+        if let settings = settings {
+            // Font size and bold
+            let fontSize = settings["fontSize"] as? String ?? "normal"
+            let bold = settings["bold"] as? Bool ?? false
+            
+            var fontCommand: UInt8 = 0x00
+            switch fontSize {
+            case "large":
+                fontCommand |= 0x20 // Double height
+            case "extraLarge":
+                fontCommand |= 0x30 // Double width + height
+            default:
+                break
+            }
+            if bold {
+                fontCommand |= 0x08 // Bold
+            }
+            
+            if fontCommand != 0x00 {
+                escPos.append(Data([0x1B, 0x21, fontCommand])) // ESC !
+            }
+            
+            // Alignment
+            let alignment = settings["alignment"] as? String ?? "left"
+            switch alignment {
+            case "center":
+                escPos.append(Data([0x1B, 0x61, 0x01])) // ESC a 1
+            case "right":
+                escPos.append(Data([0x1B, 0x61, 0x02])) // ESC a 2
+            default:
+                escPos.append(Data([0x1B, 0x61, 0x00])) // ESC a 0 (left)
+            }
+        } else {
+            // Default settings
+            escPos.append(Data([0x1B, 0x21, 0x00])) // Reset font to normal
+            escPos.append(Data([0x1B, 0x61, 0x00])) // Left alignment
+        }
+        
+        // Add text
         escPos.append(text.data(using: .utf8) ?? Data())
-        escPos.append(Data([0x0A, 0x0A, 0x0A])) // Line feeds
+        
+        // Reset alignment and font after text
+        escPos.append(Data([0x1B, 0x21, 0x00])) // Reset font
+        escPos.append(Data([0x1B, 0x61, 0x00])) // Reset alignment to left
         
         sendDataToPrinter(data: escPos, result: result)
     }
