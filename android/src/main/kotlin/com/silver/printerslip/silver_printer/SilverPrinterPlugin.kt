@@ -618,17 +618,23 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
         }
       }
       
-      // Add text with proper encoding for Thai text
-      val encodedText = try {
-        // Try TIS-620 encoding first (Thai standard)
-        text.toByteArray(Charsets.UTF_8)
-      } catch (e: Exception) {
-        // Fallback to UTF-8 if TIS-620 fails
-        text.toByteArray(Charsets.UTF_8)
-      }
-      
-      // Add ESC/POS command to set code page for Thai characters
+      // Add ESC/POS command to set code page for Thai characters FIRST
       escPosCommands.addAll(listOf(0x1B.toByte(), 0x74.toByte(), 0x11.toByte())) // ESC t 17 (CP874/TIS-620)
+      
+      // Add text with proper TIS-620 encoding for Thai text
+      val encodedText = try {
+        // Convert to TIS-620 (Windows-874) encoding for Thai compatibility
+        text.toByteArray(charset("TIS-620"))
+      } catch (e: Exception) {
+        try {
+          // Fallback to Windows-874 (same as TIS-620)
+          text.toByteArray(charset("Windows-874"))
+        } catch (e2: Exception) {
+          // Last fallback to UTF-8 with Unicode normalization
+          val normalizedText = java.text.Normalizer.normalize(text, java.text.Normalizer.Form.NFC)
+          normalizedText.toByteArray(Charsets.UTF_8)
+        }
+      }
       
       escPosCommands.addAll(encodedText.toList())
       
@@ -792,15 +798,23 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
               escPosData.addAll(listOf(0x1B, 0x2D, 0x01).map { it.toByte() })
             }
             
-            // Add text content with proper encoding for Thai text
-            val encodedContent = try {
-              content.toByteArray(Charsets.UTF_8)
-            } catch (e: Exception) {
-              content.toByteArray(Charsets.UTF_8)
-            }
-            
             // Add ESC/POS command to set code page for Thai characters before text
             escPosData.addAll(listOf(0x1B, 0x74, 0x11).map { it.toByte() }) // ESC t 17 (CP874/TIS-620)
+            
+            // Add text content with proper TIS-620 encoding for Thai text
+            val encodedContent = try {
+              // Convert to TIS-620 (Windows-874) encoding for Thai compatibility
+              content.toByteArray(charset("TIS-620"))
+            } catch (e: Exception) {
+              try {
+                // Fallback to Windows-874 (same as TIS-620)
+                content.toByteArray(charset("Windows-874"))
+              } catch (e2: Exception) {
+                // Last fallback to UTF-8 with Unicode normalization
+                val normalizedContent = java.text.Normalizer.normalize(content, java.text.Normalizer.Form.NFC)
+                normalizedContent.toByteArray(Charsets.UTF_8)
+              }
+            }
             
             escPosData.addAll(encodedContent.toList())
             escPosData.add(0x0A.toByte()) // Line feed

@@ -499,11 +499,14 @@ public class SilverPrinterPlugin: NSObject, FlutterPlugin {
         // Add ESC/POS command to set code page for Thai characters
         escPos.append(Data([0x1B, 0x74, 0x11])) // ESC t 17 (CP874/TIS-620)
         
-        // Add text with proper encoding for Thai text
-        if let textData = text.data(using: .utf8) {
+        // Add text with proper TIS-620 encoding for Thai text
+        if let textData = text.data(using: String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(kCFStringEncodingDOSThai))) {
+            escPos.append(textData)
+        } else if let textData = text.data(using: .utf8) {
+            // Fallback to UTF-8 if TIS-620 fails
             escPos.append(textData)
         } else {
-            // Fallback encoding if UTF-8 fails
+            // Final fallback
             escPos.append(text.data(using: .isoLatin1) ?? Data())
         }
         
@@ -547,10 +550,13 @@ public class SilverPrinterPlugin: NSObject, FlutterPlugin {
             // Add ESC/POS command to set code page for Thai characters
             escPos.append(Data([0x1B, 0x74, 0x11])) // ESC t 17 (CP874/TIS-620)
             
-            if let textData = text.data(using: .utf8) {
+            if let textData = text.data(using: String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(kCFStringEncodingDOSThai))) {
+                escPos.append(textData)
+            } else if let textData = text.data(using: .utf8) {
+                // Fallback to UTF-8 if TIS-620 fails
                 escPos.append(textData)
             } else {
-                // Fallback encoding if UTF-8 fails
+                // Final fallback
                 escPos.append(text.data(using: .isoLatin1) ?? Data())
             }
             escPos.append(Data([0x0A])) // Line feed
@@ -651,11 +657,14 @@ public class SilverPrinterPlugin: NSObject, FlutterPlugin {
                 // Add ESC/POS command to set code page for Thai characters before text
                 escPosData.append(Data([0x1B, 0x74, 0x11])) // ESC t 17 (CP874/TIS-620)
                 
-                // Add text content with proper encoding for Thai text
-                if let textData = content.data(using: .utf8) {
+                // Add text content with proper TIS-620 encoding for Thai text
+                if let textData = content.data(using: String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(kCFStringEncodingDOSThai))) {
+                    escPosData.append(textData)
+                } else if let textData = content.data(using: .utf8) {
+                    // Fallback to UTF-8 if TIS-620 fails
                     escPosData.append(textData)
                 } else {
-                    // Fallback encoding if UTF-8 fails
+                    // Final fallback
                     escPosData.append(content.data(using: .isoLatin1) ?? Data())
                 }
                 escPosData.append(Data([0x0A])) // Line feed
