@@ -496,19 +496,30 @@ public class SilverPrinterPlugin: NSObject, FlutterPlugin {
             escPos.append(Data([0x1B, 0x61, 0x00])) // Left alignment
         }
         
-        // Add ESC/POS command to set code page for Thai characters
-        escPos.append(Data([0x1B, 0x74, 0x11])) // ESC t 17 (CP874/TIS-620)
+        // Check settings for encoding preference
+        let useModernEncoding = settings?["useModernEncoding"] as? Bool ?? true
         
-        // Add text with proper TIS-620/Windows-874 encoding for Thai text
-        let tis620Encoding = CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(0x0A01)) // TIS-620
-        if let textData = text.data(using: String.Encoding(rawValue: tis620Encoding)) {
-            escPos.append(textData)
-        } else if let textData = text.data(using: .utf8) {
-            // Fallback to UTF-8 if TIS-620 fails
-            escPos.append(textData)
+        if useModernEncoding {
+            // Modern approach: Use UTF-8 (for newer printers)
+            escPos.append(Data([0x1B, 0x74, 0x10])) // ESC t 16 (UTF-8)
+            if let textData = text.data(using: .utf8) {
+                escPos.append(textData)
+            } else {
+                escPos.append(text.data(using: .isoLatin1) ?? Data())
+            }
         } else {
-            // Final fallback
-            escPos.append(text.data(using: .isoLatin1) ?? Data())
+            // Traditional approach: Use TIS-620 (for older thermal printers)
+            escPos.append(Data([0x1B, 0x74, 0x11])) // ESC t 17 (CP874/TIS-620)
+            let tis620Encoding = CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(0x0A01)) // TIS-620
+            if let textData = text.data(using: String.Encoding(rawValue: tis620Encoding)) {
+                escPos.append(textData)
+            } else if let textData = text.data(using: .utf8) {
+                // Fallback to UTF-8 if TIS-620 fails
+                escPos.append(textData)
+            } else {
+                // Final fallback
+                escPos.append(text.data(using: .isoLatin1) ?? Data())
+            }
         }
         
         // Reset alignment and font after text
@@ -548,18 +559,30 @@ public class SilverPrinterPlugin: NSObject, FlutterPlugin {
         escPos.append(Data([0x1B, 0x40])) // Initialize
         
         if !text.isEmpty {
-            // Add ESC/POS command to set code page for Thai characters
-            escPos.append(Data([0x1B, 0x74, 0x11])) // ESC t 17 (CP874/TIS-620)
+            // Check settings for encoding preference (same as printText)
+            let useModernEncoding = settings?["useModernEncoding"] as? Bool ?? true
             
-            let tis620Encoding = CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(0x0A01)) // TIS-620
-            if let textData = text.data(using: String.Encoding(rawValue: tis620Encoding)) {
-                escPos.append(textData)
-            } else if let textData = text.data(using: .utf8) {
-                // Fallback to UTF-8 if TIS-620 fails
-                escPos.append(textData)
+            if useModernEncoding {
+                // Modern approach: Use UTF-8
+                escPos.append(Data([0x1B, 0x74, 0x10])) // ESC t 16 (UTF-8)
+                if let textData = text.data(using: .utf8) {
+                    escPos.append(textData)
+                } else {
+                    escPos.append(text.data(using: .isoLatin1) ?? Data())
+                }
             } else {
-                // Final fallback
-                escPos.append(text.data(using: .isoLatin1) ?? Data())
+                // Traditional approach: Use TIS-620
+                escPos.append(Data([0x1B, 0x74, 0x11])) // ESC t 17 (CP874/TIS-620)
+                let tis620Encoding = CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(0x0A01)) // TIS-620
+                if let textData = text.data(using: String.Encoding(rawValue: tis620Encoding)) {
+                    escPos.append(textData)
+                } else if let textData = text.data(using: .utf8) {
+                    // Fallback to UTF-8 if TIS-620 fails
+                    escPos.append(textData)
+                } else {
+                    // Final fallback
+                    escPos.append(text.data(using: .isoLatin1) ?? Data())
+                }
             }
             escPos.append(Data([0x0A])) // Line feed
         }
@@ -656,19 +679,30 @@ public class SilverPrinterPlugin: NSObject, FlutterPlugin {
                     escPosData.append(Data([0x1B, 0x2D, 0x01]))
                 }
                 
-                // Add ESC/POS command to set code page for Thai characters before text
-                escPosData.append(Data([0x1B, 0x74, 0x11])) // ESC t 17 (CP874/TIS-620)
+                // Check settings for encoding preference (same as printText)
+                let useModernEncoding = settings?["useModernEncoding"] as? Bool ?? true
                 
-                // Add text content with proper TIS-620 encoding for Thai text
-                let tis620Encoding = CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(0x0A01)) // TIS-620
-                if let textData = content.data(using: String.Encoding(rawValue: tis620Encoding)) {
-                    escPosData.append(textData)
-                } else if let textData = content.data(using: .utf8) {
-                    // Fallback to UTF-8 if TIS-620 fails
-                    escPosData.append(textData)
+                if useModernEncoding {
+                    // Modern approach: Use UTF-8
+                    escPosData.append(Data([0x1B, 0x74, 0x10])) // ESC t 16 (UTF-8)
+                    if let textData = content.data(using: .utf8) {
+                        escPosData.append(textData)
+                    } else {
+                        escPosData.append(content.data(using: .isoLatin1) ?? Data())
+                    }
                 } else {
-                    // Final fallback
-                    escPosData.append(content.data(using: .isoLatin1) ?? Data())
+                    // Traditional approach: Use TIS-620
+                    escPosData.append(Data([0x1B, 0x74, 0x11])) // ESC t 17 (CP874/TIS-620)
+                    let tis620Encoding = CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(0x0A01)) // TIS-620
+                    if let textData = content.data(using: String.Encoding(rawValue: tis620Encoding)) {
+                        escPosData.append(textData)
+                    } else if let textData = content.data(using: .utf8) {
+                        // Fallback to UTF-8 if TIS-620 fails
+                        escPosData.append(textData)
+                    } else {
+                        // Final fallback
+                        escPosData.append(content.data(using: .isoLatin1) ?? Data())
+                    }
                 }
                 escPosData.append(Data([0x0A])) // Line feed
                 

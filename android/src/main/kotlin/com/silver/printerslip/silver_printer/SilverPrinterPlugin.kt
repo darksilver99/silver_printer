@@ -618,23 +618,37 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
         }
       }
       
-      // Add ESC/POS command to set code page for Thai characters FIRST
-      escPosCommands.addAll(listOf(0x1B.toByte(), 0x74.toByte(), 0x11.toByte())) // ESC t 17 (CP874/TIS-620)
+      // Check settings for encoding preference
+      val useModernEncoding = settings?.get("useModernEncoding") as? Boolean ?: true
       
-      // Add text with proper TIS-620 encoding for Thai text
-      val encodedText = try {
-        // Convert to TIS-620 (Windows-874) encoding for Thai compatibility
-        text.toByteArray(charset("TIS-620"))
-      } catch (e: Exception) {
+      val (encodedText, codePageCommand) = if (useModernEncoding) {
+        // Modern approach: Use UTF-8 (for newer printers)
+        val utf8Text = text.toByteArray(Charsets.UTF_8)
+        val utf8Command = listOf(0x1B.toByte(), 0x74.toByte(), 0x10.toByte()) // ESC t 16 (UTF-8)
+        Pair(utf8Text, utf8Command)
+      } else {
+        // Traditional approach: Use TIS-620 (for older thermal printers)
         try {
-          // Fallback to Windows-874 (same as TIS-620)
-          text.toByteArray(charset("Windows-874"))
-        } catch (e2: Exception) {
-          // Last fallback to UTF-8 with Unicode normalization
-          val normalizedText = java.text.Normalizer.normalize(text, java.text.Normalizer.Form.NFC)
-          normalizedText.toByteArray(Charsets.UTF_8)
+          val tis620Text = text.toByteArray(charset("TIS-620"))
+          val tis620Command = listOf(0x1B.toByte(), 0x74.toByte(), 0x11.toByte()) // ESC t 17 (CP874/TIS-620)
+          Pair(tis620Text, tis620Command)
+        } catch (e: Exception) {
+          try {
+            val win874Text = text.toByteArray(charset("Windows-874"))
+            val win874Command = listOf(0x1B.toByte(), 0x74.toByte(), 0x11.toByte()) // ESC t 17
+            Pair(win874Text, win874Command)
+          } catch (e2: Exception) {
+            // Fallback to UTF-8 if TIS-620 fails
+            val normalizedText = java.text.Normalizer.normalize(text, java.text.Normalizer.Form.NFC)
+            val normalizedBytes = normalizedText.toByteArray(Charsets.UTF_8)
+            val utf8Command = listOf(0x1B.toByte(), 0x74.toByte(), 0x10.toByte()) // ESC t 16
+            Pair(normalizedBytes, utf8Command)
+          }
         }
       }
+      
+      // Add appropriate code page command
+      escPosCommands.addAll(codePageCommand)
       
       escPosCommands.addAll(encodedText.toList())
       
@@ -798,23 +812,37 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
               escPosData.addAll(listOf(0x1B, 0x2D, 0x01).map { it.toByte() })
             }
             
-            // Add ESC/POS command to set code page for Thai characters before text
-            escPosData.addAll(listOf(0x1B, 0x74, 0x11).map { it.toByte() }) // ESC t 17 (CP874/TIS-620)
+            // Check settings for encoding preference (same as printText)
+            val useModernEncoding = settings?.get("useModernEncoding") as? Boolean ?: true
             
-            // Add text content with proper TIS-620 encoding for Thai text
-            val encodedContent = try {
-              // Convert to TIS-620 (Windows-874) encoding for Thai compatibility
-              content.toByteArray(charset("TIS-620"))
-            } catch (e: Exception) {
+            val (encodedContent, contentCodePageCommand) = if (useModernEncoding) {
+              // Modern approach: Use UTF-8 (for newer printers)
+              val utf8Content = content.toByteArray(Charsets.UTF_8)
+              val utf8Command = listOf(0x1B, 0x74, 0x10).map { it.toByte() } // ESC t 16 (UTF-8)
+              Pair(utf8Content, utf8Command)
+            } else {
+              // Traditional approach: Use TIS-620 (for older thermal printers)
               try {
-                // Fallback to Windows-874 (same as TIS-620)
-                content.toByteArray(charset("Windows-874"))
-              } catch (e2: Exception) {
-                // Last fallback to UTF-8 with Unicode normalization
-                val normalizedContent = java.text.Normalizer.normalize(content, java.text.Normalizer.Form.NFC)
-                normalizedContent.toByteArray(Charsets.UTF_8)
+                val tis620Content = content.toByteArray(charset("TIS-620"))
+                val tis620Command = listOf(0x1B, 0x74, 0x11).map { it.toByte() } // ESC t 17 (CP874/TIS-620)
+                Pair(tis620Content, tis620Command)
+              } catch (e: Exception) {
+                try {
+                  val win874Content = content.toByteArray(charset("Windows-874"))
+                  val win874Command = listOf(0x1B, 0x74, 0x11).map { it.toByte() } // ESC t 17
+                  Pair(win874Content, win874Command)
+                } catch (e2: Exception) {
+                  // Fallback to UTF-8
+                  val normalizedContent = java.text.Normalizer.normalize(content, java.text.Normalizer.Form.NFC)
+                  val normalizedBytes = normalizedContent.toByteArray(Charsets.UTF_8)
+                  val utf8Command = listOf(0x1B, 0x74, 0x10).map { it.toByte() } // ESC t 16
+                  Pair(normalizedBytes, utf8Command)
+                }
               }
             }
+            
+            // Add appropriate code page command
+            escPosData.addAll(contentCodePageCommand)
             
             escPosData.addAll(encodedContent.toList())
             escPosData.add(0x0A.toByte()) // Line feed
