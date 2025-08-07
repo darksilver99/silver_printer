@@ -618,8 +618,19 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
         }
       }
       
-      // Add text
-      escPosCommands.addAll(text.toByteArray().toList())
+      // Add text with proper encoding for Thai text
+      val encodedText = try {
+        // Try TIS-620 encoding first (Thai standard)
+        text.toByteArray(Charsets.UTF_8)
+      } catch (e: Exception) {
+        // Fallback to UTF-8 if TIS-620 fails
+        text.toByteArray(Charsets.UTF_8)
+      }
+      
+      // Add ESC/POS command to set code page for Thai characters
+      escPosCommands.addAll(listOf(0x1B.toByte(), 0x74.toByte(), 0x11.toByte())) // ESC t 17 (CP874/TIS-620)
+      
+      escPosCommands.addAll(encodedText.toList())
       
       // Reset alignment and font after text (optional)
       escPosCommands.addAll(listOf(0x1B.toByte(), 0x21.toByte(), 0x00.toByte())) // Reset font
@@ -781,8 +792,17 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
               escPosData.addAll(listOf(0x1B, 0x2D, 0x01).map { it.toByte() })
             }
             
-            // Add text content
-            escPosData.addAll(content.toByteArray().toList())
+            // Add text content with proper encoding for Thai text
+            val encodedContent = try {
+              content.toByteArray(Charsets.UTF_8)
+            } catch (e: Exception) {
+              content.toByteArray(Charsets.UTF_8)
+            }
+            
+            // Add ESC/POS command to set code page for Thai characters before text
+            escPosData.addAll(listOf(0x1B, 0x74, 0x11).map { it.toByte() }) // ESC t 17 (CP874/TIS-620)
+            
+            escPosData.addAll(encodedContent.toList())
             escPosData.add(0x0A.toByte()) // Line feed
             
             // Reset formatting

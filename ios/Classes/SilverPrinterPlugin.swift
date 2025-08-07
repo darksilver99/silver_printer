@@ -496,8 +496,16 @@ public class SilverPrinterPlugin: NSObject, FlutterPlugin {
             escPos.append(Data([0x1B, 0x61, 0x00])) // Left alignment
         }
         
-        // Add text
-        escPos.append(text.data(using: .utf8) ?? Data())
+        // Add ESC/POS command to set code page for Thai characters
+        escPos.append(Data([0x1B, 0x74, 0x11])) // ESC t 17 (CP874/TIS-620)
+        
+        // Add text with proper encoding for Thai text
+        if let textData = text.data(using: .utf8) {
+            escPos.append(textData)
+        } else {
+            // Fallback encoding if UTF-8 fails
+            escPos.append(text.data(using: .isoLatin1) ?? Data())
+        }
         
         // Reset alignment and font after text
         escPos.append(Data([0x1B, 0x21, 0x00])) // Reset font
@@ -536,7 +544,15 @@ public class SilverPrinterPlugin: NSObject, FlutterPlugin {
         escPos.append(Data([0x1B, 0x40])) // Initialize
         
         if !text.isEmpty {
-            escPos.append(text.data(using: .utf8) ?? Data())
+            // Add ESC/POS command to set code page for Thai characters
+            escPos.append(Data([0x1B, 0x74, 0x11])) // ESC t 17 (CP874/TIS-620)
+            
+            if let textData = text.data(using: .utf8) {
+                escPos.append(textData)
+            } else {
+                // Fallback encoding if UTF-8 fails
+                escPos.append(text.data(using: .isoLatin1) ?? Data())
+            }
             escPos.append(Data([0x0A])) // Line feed
         }
         
@@ -632,9 +648,15 @@ public class SilverPrinterPlugin: NSObject, FlutterPlugin {
                     escPosData.append(Data([0x1B, 0x2D, 0x01]))
                 }
                 
-                // Add text content
+                // Add ESC/POS command to set code page for Thai characters before text
+                escPosData.append(Data([0x1B, 0x74, 0x11])) // ESC t 17 (CP874/TIS-620)
+                
+                // Add text content with proper encoding for Thai text
                 if let textData = content.data(using: .utf8) {
                     escPosData.append(textData)
+                } else {
+                    // Fallback encoding if UTF-8 fails
+                    escPosData.append(content.data(using: .isoLatin1) ?? Data())
                 }
                 escPosData.append(Data([0x0A])) // Line feed
                 
