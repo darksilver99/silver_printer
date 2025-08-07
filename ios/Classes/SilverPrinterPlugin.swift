@@ -499,8 +499,9 @@ public class SilverPrinterPlugin: NSObject, FlutterPlugin {
         // Add ESC/POS command to set code page for Thai characters
         escPos.append(Data([0x1B, 0x74, 0x11])) // ESC t 17 (CP874/TIS-620)
         
-        // Add text with proper TIS-620 encoding for Thai text
-        if let textData = text.data(using: String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(kCFStringEncodingDOSThai))) {
+        // Add text with proper TIS-620/Windows-874 encoding for Thai text
+        let tis620Encoding = CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(0x0A01)) // TIS-620
+        if let textData = text.data(using: String.Encoding(rawValue: tis620Encoding)) {
             escPos.append(textData)
         } else if let textData = text.data(using: .utf8) {
             // Fallback to UTF-8 if TIS-620 fails
@@ -550,7 +551,8 @@ public class SilverPrinterPlugin: NSObject, FlutterPlugin {
             // Add ESC/POS command to set code page for Thai characters
             escPos.append(Data([0x1B, 0x74, 0x11])) // ESC t 17 (CP874/TIS-620)
             
-            if let textData = text.data(using: String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(kCFStringEncodingDOSThai))) {
+            let tis620Encoding = CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(0x0A01)) // TIS-620
+            if let textData = text.data(using: String.Encoding(rawValue: tis620Encoding)) {
                 escPos.append(textData)
             } else if let textData = text.data(using: .utf8) {
                 // Fallback to UTF-8 if TIS-620 fails
@@ -658,7 +660,8 @@ public class SilverPrinterPlugin: NSObject, FlutterPlugin {
                 escPosData.append(Data([0x1B, 0x74, 0x11])) // ESC t 17 (CP874/TIS-620)
                 
                 // Add text content with proper TIS-620 encoding for Thai text
-                if let textData = content.data(using: String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(kCFStringEncodingDOSThai))) {
+                let tis620Encoding = CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(0x0A01)) // TIS-620
+                if let textData = content.data(using: String.Encoding(rawValue: tis620Encoding)) {
                     escPosData.append(textData)
                 } else if let textData = content.data(using: .utf8) {
                     // Fallback to UTF-8 if TIS-620 fails
