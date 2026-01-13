@@ -907,13 +907,8 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
         sendDataViaBLE(data, result)
       } else if (bluetoothSocket != null) {
         // Classic Bluetooth
-        bluetoothSocket?.outputStream?.write(data)
-        bluetoothSocket?.outputStream?.flush()
-        
-        mainHandler.postDelayed({
-          updatePrinterStatus("ready")
-          result.success(true)
-        }, 100)
+        // Use chunking even for Classic Bluetooth to avoid buffer overflow on newer Android versions
+        sendDataViaClassic(data, result)
       } else {
         Log.e(TAG, "No active connection to send data")
         result.success(false)
@@ -923,6 +918,48 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
       updatePrinterStatus("error")
       result.success(false)
     }
+  }
+
+  private fun sendDataViaClassic(data: ByteArray, result: Result) {
+    Thread {
+      try {
+        val stream = bluetoothSocket?.outputStream
+        if (stream == null) {
+          mainHandler.post {
+            result.error("NOT_CONNECTED", "Bluetooth socket is closed", null)
+          }
+          return@Thread
+        }
+
+        // Use 1KB chunks for Classic Bluetooth
+        // This is safe for older devices and prevents overflow on newer Android versions
+        val chunkSize = 1024 
+        val totalChunks = (data.size.toFloat() / chunkSize).let { kotlin.math.ceil(it).toInt() }
+        
+        for (i in data.indices step chunkSize) {
+          val end = minOf(i + chunkSize, data.size)
+          val chunk = data.sliceArray(i until end)
+          
+          stream.write(chunk)
+          stream.flush()
+          
+          // Small delay to allow buffer processing
+          // 5ms is usually enough for Classic Bluetooth
+          Thread.sleep(5) 
+        }
+
+        mainHandler.post {
+          updatePrinterStatus("ready")
+          result.success(true)
+        }
+      } catch (e: Exception) {
+        Log.e(TAG, "Classic Bluetooth send failed", e)
+        mainHandler.post {
+          updatePrinterStatus("error")
+          result.success(false)
+        }
+      }
+    }.start()
   }
   
   @SuppressLint("MissingPermission")
