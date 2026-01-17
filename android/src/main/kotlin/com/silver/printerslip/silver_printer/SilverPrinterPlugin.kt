@@ -461,12 +461,12 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
     
     // Set connection timeout
     val connectionTimeout = Runnable {
-      if (!callbackHandled) {
+        if (!callbackHandled) {
         callbackHandled = true
         Log.d(TAG, "BLE connection timeout for device: ${device.address}")
         bluetoothGatt?.close()
         bluetoothGatt = null
-        tryClassicBluetooth(device, result)
+        tryClassicBluetooth(device, callback, result)
       }
     }
     mainHandler.postDelayed(connectionTimeout, 8000) // 8 second timeout
