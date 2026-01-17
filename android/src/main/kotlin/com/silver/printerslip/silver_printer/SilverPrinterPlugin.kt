@@ -369,21 +369,94 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
     // Reset MTU to default when starting new connection
     currentMtu = 23
 
+    // First attempt: Try direct connection
+    connectToDeviceInternal(deviceId, false, object : ConnectionCallback {
+      override fun onSuccess() {
+        // Success on first try
+      }
+
+      override fun onFailure() {
+        // First attempt failed.
+        // This is likely due to stale cache (MAC Randomization or Bonding issue).
+        Log.d(TAG, "First connection attempt failed. Trying force refresh...")
+        
+        // Force refresh: Close everything and try to re-discover the device
+        // This forces Android to look for the device again, updating the MAC address cache
+        disconnectInternal()
+        
+        mainHandler.postDelayed({
+          connectToDeviceInternal(deviceId, true, object : ConnectionCallback {
+            override fun onSuccess() {
+              Log.d(TAG, "Second connection attempt (force refresh) succeeded")
+            }
+
+            override fun onFailure() {
+              Log.e(TAG, "All connection attempts failed")
+              updateConnectionState("disconnected")
+              result.success(false)
+            }
+          }, result)
+        }, 1000) // Wait 1s for cleanup
+      }
+    }, result)
+  }
+
+  private interface ConnectionCallback {
+    fun onSuccess()
+    fun onFailure()
+  }
+
+  @SuppressLint("MissingPermission")
+  private fun connectToDeviceInternal(deviceId: String, isRetry: Boolean, callback: ConnectionCallback, result: Result) {
     try {
+      // If this is a retry, try to start a brief discovery to refresh cache
+      if (isRetry) {
+        if (bluetoothAdapter?.isDiscovering == true) {
+            bluetoothAdapter?.cancelDiscovery()
+        }
+        bluetoothAdapter?.startDiscovery()
+        // We don't wait for discovery to finish, just starting it can refresh the cache hit
+      }
+
       val device = bluetoothAdapter!!.getRemoteDevice(deviceId)
       
       // Try BLE first (no pairing required)
-      connectBLE(device, result)
+      connectBLE(device, object : ConnectionCallback {
+        override fun onSuccess() {
+          if (isRetry && bluetoothAdapter?.isDiscovering == true) {
+             bluetoothAdapter?.cancelDiscovery()
+          }
+          callback.onSuccess()
+        }
+        
+        override fun onFailure() {
+           // If BLE fails, try Classic
+           tryClassicBluetooth(device, object : ConnectionCallback {
+             override fun onSuccess() {
+               if (isRetry && bluetoothAdapter?.isDiscovering == true) {
+                  bluetoothAdapter?.cancelDiscovery()
+               }
+               callback.onSuccess()
+             }
+             
+             override fun onFailure() {
+               if (isRetry && bluetoothAdapter?.isDiscovering == true) {
+                  bluetoothAdapter?.cancelDiscovery()
+               }
+               callback.onFailure()
+             }
+           }, result)
+        }
+      }, result)
       
     } catch (e: Exception) {
-      Log.e(TAG, "Connection failed", e)
-      updateConnectionState("disconnected")
-      result.success(false)
+      Log.e(TAG, "Connection internal failed", e)
+      callback.onFailure()
     }
   }
 
   @SuppressLint("MissingPermission")
-  private fun connectBLE(device: BluetoothDevice, result: Result) {
+  private fun connectBLE(device: BluetoothDevice, callback: ConnectionCallback, result: Result) {
     var callbackHandled = false
     
     // Set connection timeout
@@ -420,6 +493,7 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
               updatePrinterStatus("ready")
               gatt?.discoverServices()
               result.success(true)
+              callback.onSuccess()
             }
           }
           BluetoothProfile.STATE_DISCONNECTED -> {
@@ -428,8 +502,9 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
               mainHandler.removeCallbacks(connectionTimeout)
               bluetoothGatt?.close()
               bluetoothGatt = null
+          
               // If BLE fails, try Classic Bluetooth as fallback
-              tryClassicBluetooth(device, result)
+              tryClassicBluetooth(device, callback, result)
             }
           }
         }
@@ -467,7 +542,7 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
   }
 
   @SuppressLint("MissingPermission")
-  private fun tryClassicBluetooth(device: BluetoothDevice, result: Result) {
+  private fun tryClassicBluetooth(device: BluetoothDevice, callback: ConnectionCallback, result: Result) {
     try {
       // Only try Classic if device is already paired (to avoid pairing dialog)
       if (device.bondState == BluetoothDevice.BOND_BONDED) {
@@ -504,6 +579,7 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
           updateConnectionState("connected")
           updatePrinterStatus("ready")
           result.success(true)
+          callback.onSuccess()
           return
         }
       }
@@ -512,9 +588,7 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
     }
     
     // Both BLE and Classic failed
-    updateConnectionState("disconnected")
-    updatePrinterStatus("offline")
-    result.success(false)
+    callback.onFailure()
   }
 
   private fun getPrinterStatus(result: Result) {
@@ -556,6 +630,14 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
 
   @SuppressLint("MissingPermission")
   private fun disconnect(result: Result) {
+    if (disconnectInternal()) {
+      result.success(true)
+    } else {
+      result.success(false)
+    }
+  }
+
+  private fun disconnectInternal(): Boolean {
     updateConnectionState("disconnecting")
     
     try {
@@ -569,10 +651,10 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
       connectedDevice = null
       updateConnectionState("disconnected")
       updatePrinterStatus("offline")
-      result.success(true)
+      return true
     } catch (e: Exception) {
       Log.e(TAG, "Disconnect failed", e)
-      result.success(false)
+      return false
     }
   }
 
