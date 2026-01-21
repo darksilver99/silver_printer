@@ -1126,7 +1126,7 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
       
       if (foundCharacteristic != null) {
         // Use adaptive chunk size based on characteristic properties
-        val chunkSize: Int
+        var chunkSize: Int
         val useWithoutResponse: Boolean
         val delay: Int
         
