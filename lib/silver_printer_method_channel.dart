@@ -107,6 +107,12 @@ class MethodChannelSilverPrinter extends SilverPrinterPlatform {
   }
 
   @override
+  Future<bool> clearConnectionCache() async {
+    final result = await methodChannel.invokeMethod<bool>('clearConnectionCache');
+    return result ?? false;
+  }
+
+  @override
   Future<ConnectionState> getConnectionState() async {
     final result = await methodChannel.invokeMethod<String>(
       'getConnectionState',

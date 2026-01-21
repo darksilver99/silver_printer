@@ -232,6 +232,9 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
           result.error("INVALID_ARGUMENT", "Items are required", null)
         }
       }
+      "clearConnectionCache" -> {
+        clearConnectionCache(result)
+      }
       else -> {
         result.notImplemented()
       }
@@ -415,44 +418,74 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
             bluetoothAdapter?.cancelDiscovery()
         }
         bluetoothAdapter?.startDiscovery()
-        // We don't wait for discovery to finish, just starting it can refresh the cache hit
       }
 
       val device = bluetoothAdapter!!.getRemoteDevice(deviceId)
       
-      // Try BLE first (no pairing required)
-      connectBLE(device, object : ConnectionCallback {
-        override fun onSuccess() {
-          if (isRetry && bluetoothAdapter?.isDiscovering == true) {
-             bluetoothAdapter?.cancelDiscovery()
-          }
-          callback.onSuccess()
-        }
-        
-        override fun onFailure() {
-           // If BLE fails, try Classic
-           tryClassicBluetooth(device, object : ConnectionCallback {
-             override fun onSuccess() {
-               if (isRetry && bluetoothAdapter?.isDiscovering == true) {
-                  bluetoothAdapter?.cancelDiscovery()
-               }
+      // Smart Protocol Memory: Check what worked last time
+      val prefs = context.getSharedPreferences("SilverPrinterPrefs", Context.MODE_PRIVATE)
+      val lastProtocol = prefs.getString("last_protocol_$deviceId", "classic") // Default to classic if unknown
+      
+      Log.d(TAG, "Connecting to $deviceId. Preferred protocol: $lastProtocol")
+
+      if (lastProtocol == "ble") {
+          // Try BLE first, then Classic
+          connectBLE(device, object : ConnectionCallback {
+            override fun onSuccess() {
+              saveProtocolPreference(deviceId, "ble")
+              if (isRetry && bluetoothAdapter?.isDiscovering == true) bluetoothAdapter?.cancelDiscovery()
+              callback.onSuccess()
+            }
+            override fun onFailure() {
+               // Fallback to Classic
+               tryClassicBluetooth(device, object : ConnectionCallback {
+                 override fun onSuccess() {
+                   saveProtocolPreference(deviceId, "classic")
+                   if (isRetry && bluetoothAdapter?.isDiscovering == true) bluetoothAdapter?.cancelDiscovery()
+                   callback.onSuccess()
+                 }
+                 override fun onFailure() {
+                   if (isRetry && bluetoothAdapter?.isDiscovering == true) bluetoothAdapter?.cancelDiscovery()
+                   callback.onFailure()
+                 }
+               }, result)
+            }
+          }, result)
+      } else {
+          // Try Classic first (Default or Preferred), then BLE
+          tryClassicBluetooth(device, object : ConnectionCallback {
+            override fun onSuccess() {
+               saveProtocolPreference(deviceId, "classic")
+               if (isRetry && bluetoothAdapter?.isDiscovering == true) bluetoothAdapter?.cancelDiscovery()
                callback.onSuccess()
-             }
-             
-             override fun onFailure() {
-               if (isRetry && bluetoothAdapter?.isDiscovering == true) {
-                  bluetoothAdapter?.cancelDiscovery()
-               }
-               callback.onFailure()
-             }
-           }, result)
-        }
-      }, result)
+            }
+            override fun onFailure() {
+               // Fallback to BLE
+               connectBLE(device, object : ConnectionCallback {
+                 override fun onSuccess() {
+                     saveProtocolPreference(deviceId, "ble")
+                     if (isRetry && bluetoothAdapter?.isDiscovering == true) bluetoothAdapter?.cancelDiscovery()
+                     callback.onSuccess()
+                 }
+                 override fun onFailure() {
+                     if (isRetry && bluetoothAdapter?.isDiscovering == true) bluetoothAdapter?.cancelDiscovery()
+                     callback.onFailure()
+                 }
+               }, result)
+            }
+          }, result)
+      }
       
     } catch (e: Exception) {
       Log.e(TAG, "Connection internal failed", e)
       callback.onFailure()
     }
+  }
+
+  private fun saveProtocolPreference(deviceId: String, protocol: String) {
+      val prefs = context.getSharedPreferences("SilverPrinterPrefs", Context.MODE_PRIVATE)
+      prefs.edit().putString("last_protocol_$deviceId", protocol).apply()
+      Log.d(TAG, "Saved protocol preference for $deviceId: $protocol")
   }
 
   @SuppressLint("MissingPermission")
@@ -635,6 +668,23 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
     } else {
       result.success(false)
     }
+  }
+
+  private fun clearConnectionCache(result: Result) {
+      try {
+          // Disconnect first to be safe
+          disconnectInternal()
+
+          // Clear all preferences
+          val prefs = context.getSharedPreferences("SilverPrinterPrefs", Context.MODE_PRIVATE)
+          prefs.edit().clear().apply()
+          
+          Log.d(TAG, "Connection cache cleared successfully")
+          result.success(true)
+      } catch (e: Exception) {
+          Log.e(TAG, "Failed to clear connection cache", e)
+          result.success(false)
+      }
   }
 
   private fun disconnectInternal(): Boolean {
@@ -1090,6 +1140,20 @@ class SilverPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plug
           useWithoutResponse = false
           delay = 25
           Log.d(TAG, "Using write with response with chunk size: $chunkSize")
+        }
+        
+        // SAFETY NET: If MTU is small (default 23), Force small chunks to prevent garbled output
+        // This resets potential large chunk assumptions from previous sessions
+        if (currentMtu <= 23) {
+            chunkSize = 20
+            Log.w(TAG, "MTU is low ($currentMtu). Forcing safe chunk size: $chunkSize")
+        } else {
+             // Ensure chunk size doesn't exceed MTU - 3
+             val maxChunk = currentMtu - 3
+             if (chunkSize > maxChunk) {
+                 chunkSize = maxChunk
+                 Log.d(TAG, "Adjusting chunk size to fit MTU: $chunkSize")
+             }
         }
         
         Log.d(TAG, "Starting BLE print with MTU: $currentMtu, chunk size: $chunkSize")

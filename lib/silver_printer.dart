@@ -65,6 +65,12 @@ class SilverPrinter {
     return SilverPrinterPlatform.instance.disconnect();
   }
 
+  /// Clear connection cache (forget preferred protocols) and disconnect
+  /// Use this if connection issues persist.
+  Future<bool> clearConnectionCache() {
+    return SilverPrinterPlatform.instance.clearConnectionCache();
+  }
+
   /// Get current connection state
   Future<ConnectionState> getConnectionState() {
     return SilverPrinterPlatform.instance.getConnectionState();

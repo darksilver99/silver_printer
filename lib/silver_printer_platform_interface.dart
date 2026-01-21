@@ -150,6 +150,11 @@ abstract class SilverPrinterPlatform extends PlatformInterface {
     throw UnimplementedError('disconnect() has not been implemented.');
   }
 
+  /// Clear connection cache (forget preferred protocols)
+  Future<bool> clearConnectionCache() {
+    throw UnimplementedError('clearConnectionCache() has not been implemented.');
+  }
+
   /// Get current connection state
   Future<ConnectionState> getConnectionState() {
     throw UnimplementedError('getConnectionState() has not been implemented.');
