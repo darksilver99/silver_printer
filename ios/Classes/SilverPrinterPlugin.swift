@@ -192,6 +192,9 @@ public class SilverPrinterPlugin: NSObject, FlutterPlugin {
             let settings = args["settings"] as? [String: Any]
             printHybrid(items: items, settings: settings, result: result)
             
+        case "clearConnectionCache":
+            clearConnectionCache(result: result)
+            
         default:
             result(FlutterMethodNotImplemented)
         }
@@ -432,16 +435,49 @@ public class SilverPrinterPlugin: NSObject, FlutterPlugin {
     }
     
     private func disconnect(result: @escaping FlutterResult) {
+        disconnectInternal()
+        updateConnectionState("disconnected")
+        updatePrinterStatus("offline")
+        result(true)
+    }
+    
+    private func disconnectInternal() {
         updateConnectionState("disconnecting")
         
         if let peripheral = connectedPeripheral {
             centralManager?.cancelPeripheralConnection(peripheral)
+            connectedPeripheral = nil
         }
         
+        writeCharacteristic = nil
+        pendingWriteData = nil
+        pendingWriteResult = nil
+        
+        // Final state update will happen in centralManager(_:didDisconnectPeripheral:error:)
+        // But in case disconnection logic doesn't trigger callback immediately or properly
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            if self?.connectionState == "disconnecting" {
+                 self?.updateConnectionState("disconnected")
+            }
+        }
+    }
+    
+    private func clearConnectionCache(result: @escaping FlutterResult) {
+        // 1. Disconnect
+        disconnectInternal()
+        
+        // 2. Clear any cached data or preferences if implemented
+        // For now, iOS implementation doesn't strictly use UserDefaults for protocol memory
+        // like Android does, but we wipe it just in case future updates use it.
+        let domain = Bundle.main.bundleIdentifier!
+        UserDefaults.standard.removePersistentDomain(forName: domain)
+        UserDefaults.standard.synchronize()
+        
+        // 3. Reset internal states
         connectedPeripheral = nil
         writeCharacteristic = nil
-        updateConnectionState("disconnected")
-        updatePrinterStatus("offline")
+        connectionState = "disconnected"
+        printerStatus = "offline"
         
         result(true)
     }
